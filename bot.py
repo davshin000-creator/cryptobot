@@ -1,65 +1,85 @@
 import requests
 import os
 
-# 🔐 GitHub Secrets에서 가져오기
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
+
+coins = {
+    "bitcoin": "BTC",
+    "ethereum": "ETH",
+    "solana": "SOL"
+}
 
 def send_msg(text):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         requests.get(url, params={"chat_id": CHAT_ID, "text": text})
     except Exception as e:
-        print("텔레그램 전송 실패:", e)
+        print("Telegram error:", e)
 
-def coinbase_price():
+# Coinbase 가격 (공통)
+def coinbase_price(symbol):
     try:
-        url = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
+        url = f"https://api.coinbase.com/v2/prices/{symbol}-USD/spot"
         data = requests.get(url).json()
         return float(data["data"]["amount"])
     except:
-        print("Coinbase 오류")
         return None
 
+# Kraken (BTC만 예시 유지)
 def kraken_price():
     try:
         url = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD"
         data = requests.get(url).json()
         return float(data["result"]["XXBTZUSD"]["c"][0])
     except:
-        print("Kraken 오류")
         return None
 
-def run_once():
+# CoinGecko (알트코인용)
+def coingecko_price(coin):
     try:
-        c1 = coinbase_price()
-        c2 = kraken_price()
+        url = "https://api.coingecko.com/api/v3/simple/price"
+        params = {"ids": coin, "vs_currencies": "usd"}
+        data = requests.get(url, params=params).json()
+        return float(data[coin]["usd"])
+    except:
+        return None
 
-        if c1 is None or c2 is None:
-            print("데이터 없음")
-            return
+def run():
+    for coin, symbol in coins.items():
+        try:
+            # BTC는 Kraken 비교, 나머지는 CoinGecko 비교
+            if coin == "bitcoin":
+                c1 = coinbase_price(symbol)
+                c2 = kraken_price()
+            else:
+                c1 = coinbase_price(symbol)
+                c2 = coingecko_price(coin)
 
-        diff = c1 - c2
-        percent = (diff / c2) * 100
+            if c1 is None or c2 is None:
+                print(f"{coin}: 데이터 없음")
+                continue
 
-        print("Coinbase:", c1)
-        print("Kraken:", c2)
-        print(f"Diff: {diff} ({percent:.4f}%)")
+            diff = c1 - c2
+            percent = (diff / c2) * 100
 
-        # 💰 현실 수익 필터
-        if abs(percent) > 0.3:
-            msg = f"""
-🚨 ARBITRAGE ALERT
+            print(f"{coin} -> {percent:.4f}%")
 
-Coinbase: {c1}
-Kraken: {c2}
+            # 💰 현실 필터 (0.5% 이상만)
+            if abs(percent) > 0.5:
+                msg = f"""
+🚨 ARBITRAGE DETECTED
+
+Coin: {coin}
+Price A: {c1}
+Price B: {c2}
 
 Diff: {diff}
 Percent: {percent:.4f}%
 """
-            send_msg(msg)
+                send_msg(msg)
 
-    except Exception as e:
-        print("전체 에러:", e)
+        except Exception as e:
+            print(f"{coin} error:", e)
 
-run_once()
+run()
