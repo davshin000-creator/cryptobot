@@ -1,49 +1,48 @@
 import requests
 import os
 
-# 🔐 GitHub Secrets
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# 📊 감시 코인
 coins = {
     "bitcoin": "BTC",
     "ethereum": "ETH",
     "solana": "SOL"
 }
 
-# 📩 텔레그램 메시지
 def send_msg(text):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         requests.get(url, params={"chat_id": CHAT_ID, "text": text})
-    except Exception as e:
-        print("Telegram error:", e)
+    except:
+        pass
 
-# 💰 Coinbase
 def coinbase_price(symbol):
     try:
         url = f"https://api.coinbase.com/v2/prices/{symbol}-USD/spot"
-        data = requests.get(url).json()
-        return float(data["data"]["amount"])
+        return float(requests.get(url).json()["data"]["amount"])
     except:
         return None
 
-# 💰 Kraken (BTC만)
 def kraken_price():
     try:
         url = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD"
-        data = requests.get(url).json()
-        return float(data["result"]["XXBTZUSD"]["c"][0])
+        return float(requests.get(url).json()["result"]["XXBTZUSD"]["c"][0])
     except:
         return None
 
-# 💰 Gemini
 def gemini_price(symbol):
     try:
         url = f"https://api.gemini.com/v1/pubticker/{symbol.lower()}usd"
-        data = requests.get(url).json()
-        return float(data["last"])
+        return float(requests.get(url).json()["last"])
+    except:
+        return None
+
+# 🔥 KuCoin 추가
+def kucoin_price(symbol):
+    try:
+        url = f"https://api.kucoin.com/api/v1/market/orderbook/level1?symbol={symbol}-USDT"
+        return float(requests.get(url).json()["data"]["price"])
     except:
         return None
 
@@ -51,65 +50,51 @@ def run():
     for coin, symbol in coins.items():
 
         try:
-            # 🔁 거래소 가격 수집
-            if coin == "bitcoin":
-                prices = {
-                    "Coinbase": coinbase_price(symbol),
-                    "Kraken": kraken_price(),
-                    "Gemini": gemini_price(symbol)
-                }
-            else:
-                prices = {
-                    "Coinbase": coinbase_price(symbol),
-                    "Gemini": gemini_price(symbol)
-                }
+            prices = {
+                "Coinbase": coinbase_price(symbol),
+                "Gemini": gemini_price(symbol),
+                "KuCoin": kucoin_price(symbol)
+            }
 
-            # None 제거
+            if coin == "bitcoin":
+                prices["Kraken"] = kraken_price()
+
             prices = {k: v for k, v in prices.items() if v is not None}
 
             if len(prices) < 2:
-                print(f"{coin}: 데이터 부족")
                 continue
 
-            # 🔥 최고가 / 최저가 찾기
             max_ex = max(prices, key=prices.get)
             min_ex = min(prices, key=prices.get)
 
-            max_price = prices[max_ex]
-            min_price = prices[min_ex]
+            max_p = prices[max_ex]
+            min_p = prices[min_ex]
 
-            diff = max_price - min_price
-            percent = (diff / min_price) * 100
+            diff = max_p - min_p
+            percent = (diff / min_p) * 100
 
-            print(f"{coin} | Gross: {percent:.4f}%")
-
-            # 💰 실전 필터
             fee = 0.4
             net = percent - fee
 
-            min_diff = 50        # 최소 $50 차이
-            min_percent = 0.3    # 최소 0.3%
+            min_diff = 50
+            min_percent = 0.3
 
-            print(f"{coin} | Net: {net:.4f}% | Diff: ${diff:.2f}")
+            print(f"{coin} | Net: {net:.3f}% | Diff: ${diff:.2f}")
 
-            # 🚨 진짜 기회만 알림
             if net > min_percent and diff > min_diff:
-                msg = f"""
-🚨 REAL TRADE OPPORTUNITY
+                send_msg(f"""
+🚨 ARBITRAGE
 
-Coin: {coin.upper()}
+Coin: {coin}
 
-BUY: {min_ex} {min_price}
-SELL: {max_ex} {max_price}
+BUY: {min_ex} {min_p}
+SELL: {max_ex} {max_p}
 
 Diff: ${diff:.2f}
-Gross: {percent:.4f}%
-Net: {net:.4f}%
-"""
-                send_msg(msg)
+Net: {net:.3f}%
+""")
 
         except Exception as e:
-            print(f"{coin} error:", e)
+            print("error:", e)
 
-# ▶ 실행
 run()
