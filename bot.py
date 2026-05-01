@@ -94,6 +94,7 @@ Net: {net:.3f}%
             continue
 
 # 🚀 초고속 루프 (핵심)
-while True:
+def run_once():
     check_arbitrage()
-    time.sleep(5)
+
+run_once()
