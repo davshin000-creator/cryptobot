@@ -75,11 +75,19 @@ Price A: {c1}
 Price B: {c2}
 
 Diff: {diff}
-Percent: {percent:.4f}%
-"""
-                send_msg(msg)
+fee = 0.4  # 총 수수료 + 리스크 (0.4%)
 
-        except Exception as e:
-            print(f"{coin} error:", e)
+net_percent = abs(percent) - fee
 
-run()
+print(f"Gross: {percent:.4f}% | Net: {net_percent:.4f}%")
+
+if net_percent > 0.2:
+    send_msg(f"""
+🚨 REAL ARBITRAGE
+
+Coin: {coin}
+Gross: {percent:.4f}%
+Net: {net_percent:.4f}%
+
+Opportunity confirmed
+""")
