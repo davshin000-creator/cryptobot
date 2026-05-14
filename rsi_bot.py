@@ -3,11 +3,10 @@ import pandas as pd
 from ta.momentum import RSIIndicator
 import os
 
-# 🔐 Telegram
 TOKEN = os.environ.get("TOKEN")
 CHAT_ID = os.environ.get("CHAT_ID")
 
-# 📩 메시지 함수
+# 📩 Telegram
 def send_msg(text):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
@@ -16,14 +15,14 @@ def send_msg(text):
         "text": text
     })
 
-# BTC 데이터 가져오기
+# BTC 데이터
 url = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=5"
 
 data = requests.get(url).json()
 
 candles = data["result"]["XXBTZUSD"]
 
-# 종가(close)
+# 종가 추출
 closes = []
 
 for candle in candles:
@@ -37,53 +36,61 @@ rsi = RSIIndicator(close=df["close"], window=14)
 
 df["RSI"] = rsi.rsi()
 
-# 최신 RSI
 latest_rsi = df["RSI"].iloc[-1]
 
-print("Latest RSI:", latest_rsi)
-
-# 현재 가격
 current_price = closes[-1]
 
-# 전략
-if latest_rsi < 30:
+print("RSI:", latest_rsi)
+print("Price:", current_price)
+
+# =========================
+# PAPER TRADING
+# =========================
+
+# 가상 상태
+position = False
+buy_price = 0
+
+# BUY
+if latest_rsi < 30 and not position:
+
+    position = True
+    buy_price = current_price
 
     msg = f"""
-🟢 BUY SIGNAL
+🟢 PAPER BUY
 
-BTC Price: ${current_price}
+BTC: ${current_price}
 
 RSI: {latest_rsi:.2f}
-
-Possible oversold condition
 """
 
     print(msg)
     send_msg(msg)
 
-elif latest_rsi > 70:
+# SELL
+elif latest_rsi > 70 and position:
+
+    position = False
+
+    profit_percent = (
+        (current_price - buy_price)
+        / buy_price
+    ) * 100
 
     msg = f"""
-🔴 SELL SIGNAL
+🔴 PAPER SELL
 
-BTC Price: ${current_price}
+Buy Price: ${buy_price}
+Sell Price: ${current_price}
 
-RSI: {latest_rsi:.2f}
-
-Possible overbought condition
+Profit: {profit_percent:.2f}%
 """
 
     print(msg)
     send_msg(msg)
 
+# HOLD
 else:
 
-    msg = f"""
-⚪ HOLD
-
-BTC Price: ${current_price}
-
-RSI: {latest_rsi:.2f}
-"""
-
-    print(msg)
+    print("⚪ HOLD")
