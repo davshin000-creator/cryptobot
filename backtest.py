@@ -35,21 +35,15 @@ df = pd.DataFrame(
 )
 
 # ==========================
-# EMA Indicators
+# Breakout Indicator
 # ==========================
 
-# Fast EMA
-df["EMA9"] = (
+# Previous 20 candle high
+df["Highest20"] = (
     df["close"]
-    .ewm(span=9)
-    .mean()
-)
-
-# Slow EMA
-df["EMA21"] = (
-    df["close"]
-    .ewm(span=21)
-    .mean()
+    .rolling(20)
+    .max()
+    .shift(1)
 )
 
 # ==========================
@@ -63,7 +57,7 @@ trades = []
 wins = 0
 losses = 0
 
-TAKE_PROFIT = 2.0
+TAKE_PROFIT = 2.5
 STOP_LOSS = -1.0
 
 # ==========================
@@ -72,16 +66,18 @@ STOP_LOSS = -1.0
 
 for i in range(len(df)):
 
-    ema9 = df["EMA9"].iloc[i]
-    ema21 = df["EMA21"].iloc[i]
     price = df["close"].iloc[i]
+    highest20 = df["Highest20"].iloc[i]
+
+    if pd.isna(highest20):
+        continue
 
     # =====================
     # BUY
     # =====================
 
     if (
-        ema9 > ema21
+        price > highest20
         and not position
     ):
 
@@ -103,12 +99,8 @@ for i in range(len(df)):
 
         sell_reason = None
 
-        # EMA Cross Down
-        if ema9 < ema21:
-            sell_reason = "EMA CROSS"
-
         # Take Profit
-        elif current_profit >= TAKE_PROFIT:
+        if current_profit >= TAKE_PROFIT:
             sell_reason = "TAKE PROFIT"
 
         # Stop Loss
@@ -165,24 +157,13 @@ avg_profit = (
 
 print("\n========== BACKTEST ==========")
 
-print(
-    "Total Trades:",
-    total_trades
-)
+print("Total Trades:", total_trades)
+
+print("Wins:", wins)
+print("Losses:", losses)
 
 print(
-    "Wins:",
-    wins
-)
-
-print(
-    "Losses:",
-    losses
-)
-
-print(
-    f"Win Rate: "
-    f"{win_rate:.2f}%"
+    f"Win Rate: {win_rate:.2f}%"
 )
 
 print(
