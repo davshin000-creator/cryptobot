@@ -1,15 +1,15 @@
 import requests
 import pandas as pd
-from ta.momentum import RSIIndicator
 
 # ==========================
 # Kraken Historical Data
+# 15 minute candles
 # ==========================
 
 url = (
     "https://api.kraken.com"
     "/0/public/OHLC"
-    "?pair=XBTUSD&interval=5"
+    "?pair=XBTUSD&interval=15"
 )
 
 data = requests.get(url).json()
@@ -35,28 +35,20 @@ df = pd.DataFrame(
 )
 
 # ==========================
-# Indicators
+# EMA Indicators
 # ==========================
 
-# RSI
-rsi = RSIIndicator(
-    close=df["close"],
-    window=14
-)
-
-df["RSI"] = rsi.rsi()
-
-# EMA20
-df["EMA20"] = (
+# Fast EMA
+df["EMA9"] = (
     df["close"]
-    .ewm(span=20)
+    .ewm(span=9)
     .mean()
 )
 
-# EMA50
-df["EMA50"] = (
+# Slow EMA
+df["EMA21"] = (
     df["close"]
-    .ewm(span=50)
+    .ewm(span=21)
     .mean()
 )
 
@@ -71,27 +63,25 @@ trades = []
 wins = 0
 losses = 0
 
+TAKE_PROFIT = 2.0
+STOP_LOSS = -1.0
+
 # ==========================
 # Backtest Loop
 # ==========================
 
 for i in range(len(df)):
 
-    rsi_value = df["RSI"].iloc[i]
-    ema20 = df["EMA20"].iloc[i]
-    ema50 = df["EMA50"].iloc[i]
+    ema9 = df["EMA9"].iloc[i]
+    ema21 = df["EMA21"].iloc[i]
     price = df["close"].iloc[i]
-
-    if pd.isna(rsi_value):
-        continue
 
     # =====================
     # BUY
     # =====================
 
     if (
-        ema20 > ema50
-        and rsi_value > 55
+        ema9 > ema21
         and not position
     ):
 
@@ -104,36 +94,54 @@ for i in range(len(df)):
     # SELL
     # =====================
 
-    elif (
-        position
-        and (
-            ema20 < ema50
-            or rsi_value < 45
-        )
-    ):
+    elif position:
 
-        position = False
-
-        profit_percent = (
+        current_profit = (
             (price - buy_price)
             / buy_price
         ) * 100
 
-        trades.append(
-            profit_percent
-        )
+        sell_reason = None
 
-        if profit_percent > 0:
-            wins += 1
-        else:
-            losses += 1
+        # EMA Cross Down
+        if ema9 < ema21:
+            sell_reason = "EMA CROSS"
 
-        print(f"SELL @ {price}")
+        # Take Profit
+        elif current_profit >= TAKE_PROFIT:
+            sell_reason = "TAKE PROFIT"
 
-        print(
-            f"Profit: "
-            f"{profit_percent:.2f}%"
-        )
+        # Stop Loss
+        elif current_profit <= STOP_LOSS:
+            sell_reason = "STOP LOSS"
+
+        # Execute Sell
+        if sell_reason:
+
+            position = False
+
+            trades.append(
+                current_profit
+            )
+
+            if current_profit > 0:
+                wins += 1
+            else:
+                losses += 1
+
+            print(
+                f"SELL @ {price}"
+            )
+
+            print(
+                f"Profit: "
+                f"{current_profit:.2f}%"
+            )
+
+            print(
+                f"Reason: "
+                f"{sell_reason}"
+            )
 
 # ==========================
 # Results
