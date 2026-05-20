@@ -1,15 +1,16 @@
 import requests
 import pandas as pd
+from ta.momentum import RSIIndicator
 
 # ==========================
 # Kraken Historical Data
-# 15 minute candles
+# 1 hour candles
 # ==========================
 
 url = (
     "https://api.kraken.com"
     "/0/public/OHLC"
-    "?pair=XBTUSD&interval=15"
+    "?pair=XBTUSD&interval=60"
 )
 
 data = requests.get(url).json()
@@ -35,15 +36,29 @@ df = pd.DataFrame(
 )
 
 # ==========================
-# Breakout Indicator
+# Indicators
 # ==========================
 
-# Previous 20 candle high
-df["Highest20"] = (
+# RSI
+rsi = RSIIndicator(
+    close=df["close"],
+    window=14
+)
+
+df["RSI"] = rsi.rsi()
+
+# EMA50
+df["EMA50"] = (
     df["close"]
-    .rolling(20)
-    .max()
-    .shift(1)
+    .ewm(span=50)
+    .mean()
+)
+
+# EMA200
+df["EMA200"] = (
+    df["close"]
+    .ewm(span=200)
+    .mean()
 )
 
 # ==========================
@@ -57,8 +72,8 @@ trades = []
 wins = 0
 losses = 0
 
-TAKE_PROFIT = 2.5
-STOP_LOSS = -1.0
+TAKE_PROFIT = 4.0
+STOP_LOSS = -2.0
 
 # ==========================
 # Backtest Loop
@@ -67,9 +82,11 @@ STOP_LOSS = -1.0
 for i in range(len(df)):
 
     price = df["close"].iloc[i]
-    highest20 = df["Highest20"].iloc[i]
+    rsi_value = df["RSI"].iloc[i]
+    ema50 = df["EMA50"].iloc[i]
+    ema200 = df["EMA200"].iloc[i]
 
-    if pd.isna(highest20):
+    if pd.isna(rsi_value):
         continue
 
     # =====================
@@ -77,7 +94,8 @@ for i in range(len(df)):
     # =====================
 
     if (
-        price > highest20
+        ema50 > ema200
+        and rsi_value < 40
         and not position
     ):
 
@@ -99,15 +117,19 @@ for i in range(len(df)):
 
         sell_reason = None
 
-        # Take Profit
+        # Take profit
         if current_profit >= TAKE_PROFIT:
             sell_reason = "TAKE PROFIT"
 
-        # Stop Loss
+        # Stop loss
         elif current_profit <= STOP_LOSS:
             sell_reason = "STOP LOSS"
 
-        # Execute Sell
+        # Trend broken
+        elif ema50 < ema200:
+            sell_reason = "TREND LOST"
+
+        # Execute sell
         if sell_reason:
 
             position = False
@@ -121,15 +143,11 @@ for i in range(len(df)):
             else:
                 losses += 1
 
-            print(
-                f"SELL @ {price}"
-            )
-
+            print(f"SELL @ {price}")
             print(
                 f"Profit: "
                 f"{current_profit:.2f}%"
             )
-
             print(
                 f"Reason: "
                 f"{sell_reason}"
@@ -158,12 +176,12 @@ avg_profit = (
 print("\n========== BACKTEST ==========")
 
 print("Total Trades:", total_trades)
-
 print("Wins:", wins)
 print("Losses:", losses)
 
 print(
-    f"Win Rate: {win_rate:.2f}%"
+    f"Win Rate: "
+    f"{win_rate:.2f}%"
 )
 
 print(
