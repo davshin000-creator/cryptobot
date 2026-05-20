@@ -56,6 +56,9 @@ trades = []
 wins = 0
 losses = 0
 
+TAKE_PROFIT = 1.5
+STOP_LOSS = -1.0
+
 # ==========================
 # Backtest Loop
 # ==========================
@@ -65,13 +68,11 @@ for i in range(len(df)):
     rsi_value = df["RSI"].iloc[i]
     price = df["close"].iloc[i]
 
-    # NaN skip
     if pd.isna(rsi_value):
         continue
 
     # =====================
     # BUY
-    # RSI < 35
     # =====================
 
     if (
@@ -82,44 +83,60 @@ for i in range(len(df)):
         position = True
         buy_price = price
 
-        print(
-            f"BUY @ {price}"
-        )
+        print(f"BUY @ {price}")
 
     # =====================
     # SELL
-    # RSI > 60
     # =====================
 
-    elif (
-        rsi_value > 60
-        and position
-    ):
+    elif position:
 
-        position = False
-
-        profit_percent = (
+        current_profit = (
             (price - buy_price)
             / buy_price
         ) * 100
 
-        trades.append(
-            profit_percent
-        )
+        sell_reason = None
 
-        if profit_percent > 0:
-            wins += 1
-        else:
-            losses += 1
+        # Take Profit
+        if current_profit >= TAKE_PROFIT:
+            sell_reason = "TAKE PROFIT"
 
-        print(
-            f"SELL @ {price}"
-        )
+        # Stop Loss
+        elif current_profit <= STOP_LOSS:
+            sell_reason = "STOP LOSS"
 
-        print(
-            f"Profit: "
-            f"{profit_percent:.2f}%"
-        )
+        # RSI Exit
+        elif rsi_value > 60:
+            sell_reason = "RSI EXIT"
+
+        # SELL EXECUTION
+        if sell_reason:
+
+            position = False
+
+            trades.append(
+                current_profit
+            )
+
+            if current_profit > 0:
+                wins += 1
+            else:
+                losses += 1
+
+            print(
+                f"SELL @ {price}"
+            )
+
+            print(
+                f"Profit: "
+                f"{current_profit:.2f}%"
+            )
+
+            print(
+                f"Reason: "
+                f"{sell_reason}"
+            )
 
 # ==========================
 # Results
