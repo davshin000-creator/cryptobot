@@ -39,6 +39,7 @@ df = pd.DataFrame(
 # Indicators
 # ==========================
 
+# RSI
 rsi = RSIIndicator(
     close=df["close"],
     window=14
@@ -46,12 +47,14 @@ rsi = RSIIndicator(
 
 df["RSI"] = rsi.rsi()
 
+# EMA50
 df["EMA50"] = (
     df["close"]
     .ewm(span=50)
     .mean()
 )
 
+# EMA200
 df["EMA200"] = (
     df["close"]
     .ewm(span=200)
@@ -71,7 +74,7 @@ wins = 0
 losses = 0
 
 STOP_LOSS = -1.0
-TRAILING_STOP = 1.0
+TRAILING_STOP = 1.5
 
 # ==========================
 # Backtest Loop
@@ -93,7 +96,7 @@ for i in range(len(df)):
 
     if (
         ema50 > ema200
-        and rsi_value < 40
+        and rsi_value < 35
         and not position
     ):
 
@@ -188,7 +191,9 @@ avg_profit = (
 print("\n========== BACKTEST ==========")
 
 print("Total Trades:", total_trades)
+
 print("Wins:", wins)
+
 print("Losses:", losses)
 
 print(
