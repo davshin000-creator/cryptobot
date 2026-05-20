@@ -72,8 +72,9 @@ trades = []
 wins = 0
 losses = 0
 
-TAKE_PROFIT = 4.0
-STOP_LOSS = -2.0
+# 🔥 Updated Risk Management
+TAKE_PROFIT = 2.0
+STOP_LOSS = -1.0
 
 # ==========================
 # Backtest Loop
@@ -117,11 +118,11 @@ for i in range(len(df)):
 
         sell_reason = None
 
-        # Take profit
+        # Take Profit
         if current_profit >= TAKE_PROFIT:
             sell_reason = "TAKE PROFIT"
 
-        # Stop loss
+        # Stop Loss
         elif current_profit <= STOP_LOSS:
             sell_reason = "STOP LOSS"
 
@@ -129,7 +130,11 @@ for i in range(len(df)):
         elif ema50 < ema200:
             sell_reason = "TREND LOST"
 
-        # Execute sell
+        # RSI exit
+        elif rsi_value > 60:
+            sell_reason = "RSI EXIT"
+
+        # Execute SELL
         if sell_reason:
 
             position = False
@@ -144,10 +149,12 @@ for i in range(len(df)):
                 losses += 1
 
             print(f"SELL @ {price}")
+
             print(
                 f"Profit: "
                 f"{current_profit:.2f}%"
             )
+
             print(
                 f"Reason: "
                 f"{sell_reason}"
@@ -175,9 +182,20 @@ avg_profit = (
 
 print("\n========== BACKTEST ==========")
 
-print("Total Trades:", total_trades)
-print("Wins:", wins)
-print("Losses:", losses)
+print(
+    "Total Trades:",
+    total_trades
+)
+
+print(
+    "Wins:",
+    wins
+)
+
+print(
+    "Losses:",
+    losses
+)
 
 print(
     f"Win Rate: "
