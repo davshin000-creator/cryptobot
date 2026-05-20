@@ -39,7 +39,6 @@ df = pd.DataFrame(
 # Indicators
 # ==========================
 
-# RSI
 rsi = RSIIndicator(
     close=df["close"],
     window=14
@@ -47,14 +46,12 @@ rsi = RSIIndicator(
 
 df["RSI"] = rsi.rsi()
 
-# EMA50
 df["EMA50"] = (
     df["close"]
     .ewm(span=50)
     .mean()
 )
 
-# EMA200
 df["EMA200"] = (
     df["close"]
     .ewm(span=200)
@@ -67,14 +64,14 @@ df["EMA200"] = (
 
 position = False
 buy_price = 0
+peak_price = 0
 
 trades = []
 wins = 0
 losses = 0
 
-# 🔥 Updated Risk Management
-TAKE_PROFIT = 2.0
 STOP_LOSS = -1.0
+TRAILING_STOP = 1.0
 
 # ==========================
 # Backtest Loop
@@ -102,39 +99,45 @@ for i in range(len(df)):
 
         position = True
         buy_price = price
+        peak_price = price
 
         print(f"BUY @ {price}")
 
     # =====================
-    # SELL
+    # POSITION MANAGEMENT
     # =====================
 
     elif position:
+
+        # update peak
+        if price > peak_price:
+            peak_price = price
 
         current_profit = (
             (price - buy_price)
             / buy_price
         ) * 100
 
+        drawdown = (
+            (peak_price - price)
+            / peak_price
+        ) * 100
+
         sell_reason = None
 
-        # Take Profit
-        if current_profit >= TAKE_PROFIT:
-            sell_reason = "TAKE PROFIT"
-
-        # Stop Loss
-        elif current_profit <= STOP_LOSS:
+        # Stop loss
+        if current_profit <= STOP_LOSS:
             sell_reason = "STOP LOSS"
 
         # Trend broken
         elif ema50 < ema200:
             sell_reason = "TREND LOST"
 
-        # RSI exit
-        elif rsi_value > 60:
-            sell_reason = "RSI EXIT"
+        # Trailing stop
+        elif drawdown >= TRAILING_STOP:
+            sell_reason = "TRAILING STOP"
 
-        # Execute SELL
+        # Execute sell
         if sell_reason:
 
             position = False
@@ -148,7 +151,9 @@ for i in range(len(df)):
             else:
                 losses += 1
 
-            print(f"SELL @ {price}")
+            print(
+                f"SELL @ {price}"
+            )
 
             print(
                 f"Profit: "
@@ -182,20 +187,9 @@ avg_profit = (
 
 print("\n========== BACKTEST ==========")
 
-print(
-    "Total Trades:",
-    total_trades
-)
-
-print(
-    "Wins:",
-    wins
-)
-
-print(
-    "Losses:",
-    losses
-)
+print("Total Trades:", total_trades)
+print("Wins:", wins)
+print("Losses:", losses)
 
 print(
     f"Win Rate: "
