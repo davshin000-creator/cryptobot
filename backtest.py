@@ -1,50 +1,41 @@
 import yfinance as yf
 import pandas as pd
-from ta.momentum import RSIIndicator
 
 # ==========================
-# Long-term BTC Data
+# BTC Long-Term Data
 # ==========================
 
 df = yf.download(
     "BTC-USD",
     period="2y",
-    interval="1h"
+    interval="1d"
 )
 
 df = df.dropna()
 
-# yfinance column 정리
+# close
 df["close"] = df["Close"]
 
 # ==========================
-# Indicators
+# SMA200
 # ==========================
 
-rsi = RSIIndicator(
-    close=df["close"],
-    window=14
+df["SMA200"] = (
+    df["close"]
+    .rolling(window=200)
+    .mean()
 )
 
-df["RSI"] = rsi.rsi()
-
-df["EMA50"] = df["close"].ewm(span=50).mean()
-df["EMA200"] = df["close"].ewm(span=200).mean()
-
 # ==========================
-# Backtest Variables
+# Variables
 # ==========================
 
 position = False
 buy_price = 0
-peak_price = 0
 
 trades = []
 wins = 0
 losses = 0
-
-STOP_LOSS = -0.8
-TRAILING_STOP = 2.0
 
 # ==========================
 # Backtest Loop
@@ -53,63 +44,63 @@ TRAILING_STOP = 2.0
 for i in range(len(df)):
 
     price = df["close"].iloc[i]
-    rsi_value = df["RSI"].iloc[i]
-    ema50 = df["EMA50"].iloc[i]
-    ema200 = df["EMA200"].iloc[i]
+    sma200 = df["SMA200"].iloc[i]
 
-    if pd.isna(rsi_value):
+    if pd.isna(sma200):
         continue
 
+    # =====================
     # BUY
+    # =====================
+
     if (
-        ema50 > ema200
-        and rsi_value < 35
+        price > sma200
         and not position
     ):
+
         position = True
         buy_price = price
-        peak_price = price
 
         print(f"BUY @ {price}")
 
-    # MANAGE POSITION
-    elif position:
+    # =====================
+    # SELL
+    # =====================
 
-        if price > peak_price:
-            peak_price = price
+    elif (
+        price < sma200
+        and position
+    ):
 
-        current_profit = ((price - buy_price) / buy_price) * 100
-        drawdown = ((peak_price - price) / peak_price) * 100
+        position = False
 
-        sell_reason = None
+        profit_percent = (
+            (price - buy_price)
+            / buy_price
+        ) * 100
 
-        if current_profit <= STOP_LOSS:
-            sell_reason = "STOP LOSS"
+        trades.append(
+            profit_percent
+        )
 
-        elif ema50 < ema200:
-            sell_reason = "TREND LOST"
+        if profit_percent > 0:
+            wins += 1
+        else:
+            losses += 1
 
-        elif drawdown >= TRAILING_STOP:
-            sell_reason = "TRAILING STOP"
+        print(f"SELL @ {price}")
 
-        if sell_reason:
-            position = False
-            trades.append(current_profit)
-
-            if current_profit > 0:
-                wins += 1
-            else:
-                losses += 1
-
-            print(f"SELL @ {price}")
-            print(f"Profit: {current_profit:.2f}%")
-            print(f"Reason: {sell_reason}")
+        print(
+            f"Profit: "
+            f"{profit_percent:.2f}%"
+        )
 
 # ==========================
 # Results
 # ==========================
 
 total_trades = len(trades)
+
 total_profit = sum(trades)
 
 win_rate = (
@@ -124,10 +115,25 @@ avg_profit = (
     else 0
 )
 
-print("\n========== LONG BACKTEST ==========")
+print("\n========== SMA200 BACKTEST ==========")
+
 print("Total Trades:", total_trades)
+
 print("Wins:", wins)
+
 print("Losses:", losses)
-print(f"Win Rate: {win_rate:.2f}%")
-print(f"Total Profit: {total_profit:.2f}%")
-print(f"Average Profit: {avg_profit:.2f}%")
+
+print(
+    f"Win Rate: "
+    f"{win_rate:.2f}%"
+)
+
+print(
+    f"Total Profit: "
+    f"{total_profit:.2f}%"
+)
+
+print(
+    f"Average Profit: "
+    f"{avg_profit:.2f}%"
+)
