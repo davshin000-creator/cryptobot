@@ -35,15 +35,30 @@ df = pd.DataFrame(
 )
 
 # ==========================
-# RSI Calculation
+# Indicators
 # ==========================
 
+# RSI
 rsi = RSIIndicator(
     close=df["close"],
     window=14
 )
 
 df["RSI"] = rsi.rsi()
+
+# EMA20
+df["EMA20"] = (
+    df["close"]
+    .ewm(span=20)
+    .mean()
+)
+
+# EMA50
+df["EMA50"] = (
+    df["close"]
+    .ewm(span=50)
+    .mean()
+)
 
 # ==========================
 # Backtest Variables
@@ -56,9 +71,6 @@ trades = []
 wins = 0
 losses = 0
 
-TAKE_PROFIT = 1.5
-STOP_LOSS = -1.0
-
 # ==========================
 # Backtest Loop
 # ==========================
@@ -66,6 +78,8 @@ STOP_LOSS = -1.0
 for i in range(len(df)):
 
     rsi_value = df["RSI"].iloc[i]
+    ema20 = df["EMA20"].iloc[i]
+    ema50 = df["EMA50"].iloc[i]
     price = df["close"].iloc[i]
 
     if pd.isna(rsi_value):
@@ -76,7 +90,8 @@ for i in range(len(df)):
     # =====================
 
     if (
-        rsi_value < 35
+        ema20 > ema50
+        and rsi_value > 55
         and not position
     ):
 
@@ -89,54 +104,36 @@ for i in range(len(df)):
     # SELL
     # =====================
 
-    elif position:
+    elif (
+        position
+        and (
+            ema20 < ema50
+            or rsi_value < 45
+        )
+    ):
 
-        current_profit = (
+        position = False
+
+        profit_percent = (
             (price - buy_price)
             / buy_price
         ) * 100
 
-        sell_reason = None
+        trades.append(
+            profit_percent
+        )
 
-        # Take Profit
-        if current_profit >= TAKE_PROFIT:
-            sell_reason = "TAKE PROFIT"
+        if profit_percent > 0:
+            wins += 1
+        else:
+            losses += 1
 
-        # Stop Loss
-        elif current_profit <= STOP_LOSS:
-            sell_reason = "STOP LOSS"
+        print(f"SELL @ {price}")
 
-        # RSI Exit
-        elif rsi_value > 60:
-            sell_reason = "RSI EXIT"
-
-        # SELL EXECUTION
-        if sell_reason:
-
-            position = False
-
-            trades.append(
-                current_profit
-            )
-
-            if current_profit > 0:
-                wins += 1
-            else:
-                losses += 1
-
-            print(
-                f"SELL @ {price}"
-            )
-
-            print(
-                f"Profit: "
-                f"{current_profit:.2f}%"
-            )
-
-            print(
-                f"Reason: "
-                f"{sell_reason}"
-            )
+        print(
+            f"Profit: "
+            f"{profit_percent:.2f}%"
+        )
 
 # ==========================
 # Results
