@@ -73,8 +73,9 @@ trades = []
 wins = 0
 losses = 0
 
-STOP_LOSS = -1.0
-TRAILING_STOP = 1.5
+# 🔥 Updated Settings
+STOP_LOSS = -0.8
+TRAILING_STOP = 2.0
 
 # ==========================
 # Backtest Loop
@@ -112,7 +113,7 @@ for i in range(len(df)):
 
     elif position:
 
-        # update peak
+        # update peak price
         if price > peak_price:
             peak_price = price
 
@@ -128,19 +129,19 @@ for i in range(len(df)):
 
         sell_reason = None
 
-        # Stop loss
+        # Stop Loss
         if current_profit <= STOP_LOSS:
             sell_reason = "STOP LOSS"
 
-        # Trend broken
+        # Trend Broken
         elif ema50 < ema200:
             sell_reason = "TREND LOST"
 
-        # Trailing stop
+        # Trailing Stop
         elif drawdown >= TRAILING_STOP:
             sell_reason = "TRAILING STOP"
 
-        # Execute sell
+        # Execute SELL
         if sell_reason:
 
             position = False
@@ -190,11 +191,20 @@ avg_profit = (
 
 print("\n========== BACKTEST ==========")
 
-print("Total Trades:", total_trades)
+print(
+    "Total Trades:",
+    total_trades
+)
 
-print("Wins:", wins)
+print(
+    "Wins:",
+    wins
+)
 
-print("Losses:", losses)
+print(
+    "Losses:",
+    losses
+)
 
 print(
     f"Win Rate: "
