@@ -46,6 +46,12 @@ train_df = df.iloc[:split_index]
 test_df = df.iloc[split_index:]
 
 # ==========================
+# Fee Settings
+# ==========================
+
+FEE = 0.2
+
+# ==========================
 # Backtest Function
 # ==========================
 
@@ -100,10 +106,14 @@ def backtest(data):
 
             position = False
 
+            # Raw Profit
             profit = (
                 (price - buy_price)
                 / buy_price
             ) * 100
+
+            # Fee Applied
+            profit = profit - FEE
 
             trades.append(
                 profit
