@@ -9,6 +9,12 @@ import requests
 KRAKEN_KEY = os.getenv("KRAKEN_KEY")
 KRAKEN_SECRET = os.getenv("KRAKEN_SECRET")
 
+print("KRAKEN_KEY exists:", KRAKEN_KEY is not None)
+print("KRAKEN_SECRET exists:", KRAKEN_SECRET is not None)
+
+if KRAKEN_KEY is None or KRAKEN_SECRET is None:
+    raise Exception("GitHub Secrets not found. Check KRAKEN_KEY and KRAKEN_SECRET names.")
+
 def get_kraken_signature(urlpath, data, secret):
     postdata = urllib.parse.urlencode(data)
     encoded = (str(data["nonce"]) + postdata).encode()
