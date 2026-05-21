@@ -7,14 +7,9 @@ from ta.momentum import RSIIndicator
 # ==========================
 
 coins = {
-
     "BTC-USD": "BTC",
     "ETH-USD": "ETH",
-    "SOL-USD": "SOL",
-    "DOGE-USD": "DOGE",
-    "LINK-USD": "LINK",
-    "AVAX-USD": "AVAX"
-
+    "SOL-USD": "SOL"
 }
 
 # ==========================
@@ -45,7 +40,7 @@ for ticker, symbol in coins.items():
     df = yf.download(
 
         ticker,
-        period="2y",
+        period="6mo",
         interval="1h"
 
     )
