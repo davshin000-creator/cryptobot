@@ -22,4 +22,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run RSI Bot
-        run: python regime_walkforward.py
+        run: python scanner.py
