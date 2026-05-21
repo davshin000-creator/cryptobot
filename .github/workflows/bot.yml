@@ -1,25 +1,23 @@
-name: Run Bot
+name: Test Kraken API
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/5 * * * *"
 
 jobs:
-  run-bot:
+  test:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    env:
+      KRAKEN_KEY: ${{ secrets.KRAKEN_KEY }}
+      KRAKEN_SECRET: ${{ secrets.KRAKEN_SECRET }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install packages
-        run: pip install -r requirements.txt
+      - run: pip install requests
 
-      - name: Test Kraken API
-        run: python kraken_test.py
+      - run: python kraken_test.py
