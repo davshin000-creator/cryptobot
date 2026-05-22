@@ -1,15 +1,17 @@
-name: Test BUY
+name: Live ETH Bot
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  run-bot:
     runs-on: ubuntu-latest
 
     env:
       KRAKEN_KEY: ${{ secrets.KRAKEN_KEY }}
       KRAKEN_SECRET: ${{ secrets.KRAKEN_SECRET }}
+      TOKEN: ${{ secrets.TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
 
     steps:
       - uses: actions/checkout@v4
@@ -18,6 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - run: pip install requests
+      - run: pip install -r requirements.txt
 
-      - run: python live_eth_bot.py
+      - name: Run Bot
+        run: python live_eth_bot.py
