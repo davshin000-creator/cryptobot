@@ -2,6 +2,8 @@ name: Live ETH Bot
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
 
 jobs:
   run-bot:
@@ -22,5 +24,5 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run Bot
+      - name: Run Live ETH Bot
         run: python live_eth_bot.py
