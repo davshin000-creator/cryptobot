@@ -12,13 +12,18 @@ KRAKEN_SECRET = os.getenv("KRAKEN_SECRET")
 print("KRAKEN_KEY exists:", KRAKEN_KEY is not None)
 print("KRAKEN_SECRET exists:", KRAKEN_SECRET is not None)
 
-if KRAKEN_KEY is None or KRAKEN_SECRET is None:
-    raise Exception("GitHub Secrets not found. Check KRAKEN_KEY and KRAKEN_SECRET names.")
-
 def get_kraken_signature(urlpath, data, secret):
+
     postdata = urllib.parse.urlencode(data)
-    encoded = (str(data["nonce"]) + postdata).encode()
-    message = urlpath.encode() + hashlib.sha256(encoded).digest()
+
+    encoded = (
+        str(data["nonce"]) + postdata
+    ).encode()
+
+    message = (
+        urlpath.encode()
+        + hashlib.sha256(encoded).digest()
+    )
 
     mac = hmac.new(
         base64.b64decode(secret),
@@ -26,22 +31,49 @@ def get_kraken_signature(urlpath, data, secret):
         hashlib.sha512
     )
 
-    return base64.b64encode(mac.digest()).decode()
+    return base64.b64encode(
+        mac.digest()
+    ).decode()
 
 def kraken_private_request(endpoint, data):
-    urlpath = f"/0/private/{endpoint}"
-    url = "https://api.kraken.com" + urlpath
 
-    data["nonce"] = str(int(time.time() * 1000))
+    urlpath = f"/0/private/{endpoint}"
+
+    url = (
+        "https://api.kraken.com"
+        + urlpath
+    )
+
+    data["nonce"] = str(
+        int(time.time() * 1000)
+    )
 
     headers = {
+
         "API-Key": KRAKEN_KEY,
-        "API-Sign": get_kraken_signature(urlpath, data, KRAKEN_SECRET)
+
+        "API-Sign": get_kraken_signature(
+            urlpath,
+            data,
+            KRAKEN_SECRET
+        )
     }
 
-    response = requests.post(url, headers=headers, data=data)
+    response = requests.post(
+        url,
+        headers=headers,
+        data=data
+    )
+
     return response.json()
 
-result = kraken_private_request("Balance", {})
+# ==========================
+# TEST BALANCE
+# ==========================
+
+result = kraken_private_request(
+    "Balance",
+    {}
+)
 
 print(result)
