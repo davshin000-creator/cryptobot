@@ -20,4 +20,4 @@ jobs:
 
       - run: pip install requests
 
-      - run: python test_buy.py
+      - run: kraken_test.py
