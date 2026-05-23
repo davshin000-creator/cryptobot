@@ -1,4 +1,4 @@
-name: Live ETH BTC SOL Bot
+name: Live Multi Coin Bot
 
 on:
   workflow_dispatch:
@@ -10,83 +10,33 @@ permissions:
   contents: write
 
 jobs:
-  run-bots:
+  run-bot:
     runs-on: ubuntu-latest
 
     env:
       KRAKEN_KEY: ${{ secrets.KRAKEN_KEY }}
       KRAKEN_SECRET: ${{ secrets.KRAKEN_SECRET }}
-
       TOKEN: ${{ secrets.TOKEN }}
       CHAT_ID: ${{ secrets.CHAT_ID }}
 
     steps:
-
-      # ==========================
-      # Checkout Repo
-      # ==========================
-
       - uses: actions/checkout@v4
 
-      # ==========================
-      # Setup Python
-      # ==========================
-
       - uses: actions/setup-python@v5
-
         with:
           python-version: "3.11"
 
-      # ==========================
-      # Install Packages
-      # ==========================
-
       - name: Install Packages
+        run: pip install -r requirements.txt
 
+      - name: Run Multi Coin Bot
+        run: python live_multi_bot.py
+
+      - name: Save Trade Log
         run: |
-          pip install -r requirements.txt
-
-      # ==========================
-      # Run ETH Bot
-      # ==========================
-
-      - name: Run ETH Bot
-
-        run: |
-          python live_eth_bot.py
-
-      # ==========================
-      # Run BTC Bot
-      # ==========================
-
-      - name: Run BTC Bot
-
-        run: |
-          python live_btc_bot.py
-
-      # ==========================
-      # Run SOL Bot
-      # ==========================
-
-      - name: Run SOL Bot
-
-        run: |
-          python live_sol_bot.py
-
-      # ==========================
-      # Save Trade Logs
-      # ==========================
-
-      - name: Save Trade Logs
-
-        run: |
-
           git config user.name "github-actions"
-
           git config user.email "github-actions@github.com"
 
-          git add trade_log.csv btc_trade_log.csv sol_trade_log.csv || true
-
-          git commit -m "Update trade logs" || echo "No changes to commit"
-
+          git add multi_trade_log.csv || true
+          git commit -m "Update multi trade log" || echo "No changes to commit"
           git push
