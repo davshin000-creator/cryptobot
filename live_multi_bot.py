@@ -16,7 +16,7 @@ KRAKEN_SECRET = os.getenv("KRAKEN_SECRET")
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-BUY_RSI = 27
+BUY_RSI = 25
 SELL_RSI = 40
 
 COINS = [
