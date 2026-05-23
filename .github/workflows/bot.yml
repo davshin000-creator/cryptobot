@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "0 * * * *"
 
+permissions:
+  contents: write
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -26,3 +29,16 @@ jobs:
 
       - name: Run Live ETH Bot
         run: python live_eth_bot.py
+
+      - name: Save trade log
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          if [ -f trade_log.csv ]; then
+            git add trade_log.csv
+            git commit -m "Update trade log" || echo "No changes to commit"
+            git push
+          else
+            echo "No trade_log.csv found"
+          fi
