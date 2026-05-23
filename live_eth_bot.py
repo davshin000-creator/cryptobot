@@ -27,7 +27,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 PAIR = "ETHUSD"
 
-USD_SIZE = 20
+USD_SIZE = 10
 
 BUY_RSI = 25
 SELL_RSI = 80
