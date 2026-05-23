@@ -1,4 +1,4 @@
-name: Live ETH BTC Bot
+name: Live ETH BTC SOL Bot
 
 on:
   workflow_dispatch:
@@ -21,6 +21,7 @@ jobs:
       CHAT_ID: ${{ secrets.CHAT_ID }}
 
     steps:
+
       # ==========================
       # Checkout Repo
       # ==========================
@@ -28,7 +29,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # ==========================
-      # Python
+      # Setup Python
       # ==========================
 
       - uses: actions/setup-python@v5
@@ -64,6 +65,15 @@ jobs:
           python live_btc_bot.py
 
       # ==========================
+      # Run SOL Bot
+      # ==========================
+
+      - name: Run SOL Bot
+
+        run: |
+          python live_sol_bot.py
+
+      # ==========================
       # Save Trade Logs
       # ==========================
 
@@ -75,7 +85,7 @@ jobs:
 
           git config user.email "github-actions@github.com"
 
-          git add trade_log.csv btc_trade_log.csv || true
+          git add trade_log.csv btc_trade_log.csv sol_trade_log.csv || true
 
           git commit -m "Update trade logs" || echo "No changes to commit"
 
