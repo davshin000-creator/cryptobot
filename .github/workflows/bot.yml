@@ -28,7 +28,7 @@ jobs:
       - run: pip install -r requirements.txt
 
       - name: Run Live ETH Bot
-        run: python live_eth_bot.py
+        run: python live_btc_bot.py
 
       - name: Save trade log
         run: |
