@@ -55,7 +55,7 @@ def send_msg(msg):
     requests.get(url, params={"chat_id": CHAT_ID, "text": msg})
 
 
-def save_trade(symbol, action, price, rsi, ema10, ema30, volume, result):
+def save_trade(symbol, action, price, rsi, ema10, volume, result):
     with open("multi_trade_log.csv", "a", newline="") as file:
         writer = csv.writer(file)
         writer.writerow([
@@ -65,7 +65,6 @@ def save_trade(symbol, action, price, rsi, ema10, ema30, volume, result):
             price,
             rsi,
             ema10,
-            ema30,
             volume,
             result
         ])
@@ -141,26 +140,23 @@ def get_signal_data(ticker):
     df["RSI"] = rsi.rsi()
 
     df["EMA10"] = close.ewm(span=10).mean()
-    df["EMA30"] = close.ewm(span=30).mean()
 
     price = float(close.iloc[-1])
     rsi_value = float(df["RSI"].iloc[-1])
     ema10 = float(df["EMA10"].iloc[-1])
-    ema30 = float(df["EMA30"].iloc[-1])
 
-    return price, rsi_value, ema10, ema30
+    return price, rsi_value, ema10
 
 
 def run_coin(coin):
     symbol = coin["symbol"]
 
-    price, rsi_value, ema10, ema30 = get_signal_data(coin["ticker"])
+    price, rsi_value, ema10 = get_signal_data(coin["ticker"])
     balance = get_balance(coin["balance_key"])
 
     print(f"{symbol} Price:", price)
     print(f"{symbol} RSI:", rsi_value)
     print(f"{symbol} EMA10:", ema10)
-    print(f"{symbol} EMA30:", ema30)
     print(f"{symbol} Balance:", balance)
 
     buy_volume = round(
@@ -168,10 +164,10 @@ def run_coin(coin):
         coin["precision"]
     )
 
-    # BUY = oversold + short-term recovery trend
+    # BUY = oversold + short-term recovery
     buy_signal = (
         rsi_value < BUY_RSI
-        and ema10 > ema30
+        and price > ema10
     )
 
     # SELL = RSI recovery
@@ -193,7 +189,6 @@ Balance: {balance}
 Price: ${price:.2f}
 RSI: {rsi_value:.2f}
 EMA10: {ema10:.2f}
-EMA30: {ema30:.2f}
 """)
 
         else:
@@ -211,7 +206,6 @@ EMA30: {ema30:.2f}
                 price,
                 rsi_value,
                 ema10,
-                ema30,
                 buy_volume,
                 result
             )
@@ -222,7 +216,6 @@ EMA30: {ema30:.2f}
 Price: ${price:.2f}
 RSI: {rsi_value:.2f}
 EMA10: {ema10:.2f}
-EMA30: {ema30:.2f}
 Volume: {buy_volume}
 
 Result:
@@ -251,7 +244,6 @@ Result:
                 price,
                 rsi_value,
                 ema10,
-                ema30,
                 sell_volume,
                 result
             )
@@ -262,7 +254,6 @@ Result:
 Price: ${price:.2f}
 RSI: {rsi_value:.2f}
 EMA10: {ema10:.2f}
-EMA30: {ema30:.2f}
 Volume: {sell_volume}
 
 Result:
