@@ -168,14 +168,15 @@ def run_coin(coin):
         coin["precision"]
     )
 
+    # BUY = RSI low + uptrend filter
     buy_signal = (
         rsi_value < BUY_RSI
         and ema20 > ema50
     )
 
+    # SELL = RSI recovery only
     sell_signal = (
         rsi_value > SELL_RSI
-        or ema20 < ema50
     )
 
     if buy_signal:
