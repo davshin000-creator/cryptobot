@@ -1,11 +1,15 @@
 import os
+import requests
 import pyupbit
+
+ip = requests.get("https://api.ipify.org").text
+print("현재 GitHub Actions IP:", ip)
 
 access = os.environ.get("UPBIT_ACCESS_KEY")
 secret = os.environ.get("UPBIT_SECRET_KEY")
 
 if not access or not secret:
-    raise Exception("API 키가 없습니다. GitHub Secrets를 확인하세요.")
+    raise Exception("API 키 없음")
 
 upbit = pyupbit.Upbit(access, secret)
 
