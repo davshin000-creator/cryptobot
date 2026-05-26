@@ -12,20 +12,18 @@ API_SECRET = os.getenv("KRAKEN_API_SECRET")
 
 BASE_URL = "https://api.kraken.com"
 
-PAIRS = [
-    {"pair": "XBTUSD", "asset": "XXBT", "name": "BTC"},
-    {"pair": "ETHUSD", "asset": "XETH", "name": "ETH"},
-    {"pair": "SOLUSD", "asset": "SOL", "name": "SOL"},
-]
+PAIR = "SOLUSD"
+ASSET = "SOL"
 
 INTERVAL = 15
-BUY_USD = 5
+
+BUY_USD = 10
 
 RSI_BUY = 40
 RSI_SELL = 60
 
 STOP_LOSS = -0.02
-TAKE_PROFIT = 0.035
+TAKE_PROFIT = 0.06
 
 
 def kraken_signature(urlpath, data, secret):
@@ -87,10 +85,10 @@ def kraken_public(endpoint, params=None):
     return result["result"]
 
 
-def get_ohlcv(pair):
+def get_ohlcv():
     data = kraken_public(
         "OHLC",
-        {"pair": pair, "interval": INTERVAL}
+        {"pair": PAIR, "interval": INTERVAL}
     )
 
     key = [k for k in data.keys() if k != "last"][0]
@@ -179,9 +177,9 @@ def get_balance():
     return kraken_private("Balance")
 
 
-def buy_market(pair):
+def buy_market():
     data = {
-        "pair": pair,
+        "pair": PAIR,
         "type": "buy",
         "ordertype": "market",
         "volume": str(BUY_USD),
@@ -191,9 +189,9 @@ def buy_market(pair):
     return kraken_private("AddOrder", data)
 
 
-def sell_market(pair, coin_amount):
+def sell_market(coin_amount):
     data = {
-        "pair": pair,
+        "pair": PAIR,
         "type": "sell",
         "ordertype": "market",
         "volume": str(coin_amount)
@@ -202,7 +200,7 @@ def sell_market(pair, coin_amount):
     return kraken_private("AddOrder", data)
 
 
-def get_latest_buy_price(pair):
+def get_latest_buy_price():
     trades = kraken_private(
         "TradesHistory",
         {"type": "all"}
@@ -216,8 +214,7 @@ def get_latest_buy_price(pair):
 
         if (
             trade.get("type") == "buy"
-            and pair.replace("USD", "ZUSD")
-            in trade.get("pair", "")
+            and "SOL" in trade.get("pair", "")
         ):
             buys.append(trade)
 
@@ -233,18 +230,14 @@ def get_latest_buy_price(pair):
     return float(latest_buy["price"])
 
 
-def run_bot(pair_info):
+def main():
 
-    pair = pair_info["pair"]
-    asset = pair_info["asset"]
-    name = pair_info["name"]
+    print("Kraken SOL 자동매매 시작")
 
-    print(f"\n===== {name} 체크 시작 =====")
-
-    df = get_ohlcv(pair)
+    df = get_ohlcv()
 
     if df is None or len(df) < 100:
-        print(f"{name} 캔들 부족")
+        print("캔들 부족")
         return
 
     df = add_indicators(df)
@@ -257,9 +250,9 @@ def run_bot(pair_info):
     balance = get_balance()
 
     usd_balance = float(balance.get("ZUSD", 0))
-    coin_balance = float(balance.get(asset, 0))
+    sol_balance = float(balance.get(ASSET, 0))
 
-    print(f"{name} 현재가: {price}")
+    print(f"SOL 현재가: {price}")
     print(f"RSI: {last['rsi']:.2f}")
     print(f"EMA20: {last['ema20']:.2f}")
     print(f"EMA50: {last['ema50']:.2f}")
@@ -288,20 +281,20 @@ def run_bot(pair_info):
         (ema_recovering and rsi_pullback and volume_confirm)
     )
 
-    position_value = coin_balance * price
+    position_value = sol_balance * price
 
     print(f"USD 잔고: {usd_balance}")
-    print(f"{name} 잔고: {coin_balance}")
+    print(f"SOL 잔고: {sol_balance}")
 
-    if position_value < 3:
+    if position_value < 5:
 
         if buy_signal:
 
             if usd_balance >= BUY_USD:
 
-                print(f"{name} 매수 실행")
+                print("SOL 매수 실행")
 
-                result = buy_market(pair)
+                result = buy_market()
 
                 print(result)
 
@@ -309,11 +302,11 @@ def run_bot(pair_info):
                 print("USD 잔고 부족")
 
         else:
-            print(f"{name} 매수 조건 미충족")
+            print("매수 조건 미충족")
 
     else:
 
-        avg_buy_price = get_latest_buy_price(pair)
+        avg_buy_price = get_latest_buy_price()
 
         if avg_buy_price == 0:
             print("매수가 조회 실패")
@@ -324,8 +317,8 @@ def run_bot(pair_info):
             / avg_buy_price
         )
 
-        print(f"{name} 매수가: {avg_buy_price}")
-        print(f"{name} 수익률: {profit_rate * 100:.2f}%")
+        print(f"매수가: {avg_buy_price}")
+        print(f"수익률: {profit_rate * 100:.2f}%")
 
         sell_signal = False
 
@@ -350,37 +343,14 @@ def run_bot(pair_info):
 
         if sell_signal:
 
-            print(f"{name} 시장가 매도")
+            print("SOL 시장가 매도")
 
-            result = sell_market(
-                pair,
-                coin_balance
-            )
+            result = sell_market(sol_balance)
 
             print(result)
 
         else:
-            print(f"{name} 보유 유지")
-
-
-def main():
-
-    print("Kraken BTC / ETH / SOL 자동매매 시작")
-
-    for pair_info in PAIRS:
-
-        try:
-
-            run_bot(pair_info)
-
-            time.sleep(2)
-
-        except Exception as e:
-
-            print(
-                f"{pair_info['name']} 에러 발생:",
-                e
-            )
+            print("보유 유지")
 
 
 if __name__ == "__main__":
