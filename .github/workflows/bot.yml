@@ -23,6 +23,6 @@ jobs:
 
       - name: Run bot
         env:
-          KRAKEN_API_KEY: ${{ secrets.KRAKEN_API_KEY }}
-          KRAKEN_API_SECRET: ${{ secrets.KRAKEN_API_SECRET }}
+          KRAKEN_API_KEY: ${{ secrets.KRAKEN_KEY }}
+          KRAKEN_API_SECRET: ${{ secrets.KRAKEN_SECRET }}
         run: python main.py
