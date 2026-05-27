@@ -162,7 +162,7 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL RSI40 모멘텀 자동매매 시작")
+    print("Kraken SOL EMA20 회복 모멘텀 자동매매 시작")
 
     df = get_ohlcv()
 
@@ -186,6 +186,7 @@ def main():
     print(f"RSI: {last['rsi']:.2f}")
     print(f"Prev RSI: {prev['rsi']:.2f}")
     print(f"EMA20: {last['ema20']:.2f}")
+    print(f"Prev EMA20: {prev['ema20']:.2f}")
     print(f"EMA50: {last['ema50']:.2f}")
     print(f"MACD Hist: {last['hist']:.4f}")
     print(f"Prev Hist: {prev['hist']:.4f}")
@@ -194,13 +195,13 @@ def main():
     print(f"USD 잔고: {usd_balance}")
     print(f"SOL 잔고: {sol_balance}")
 
-    trend_up = last["ema20"] > last["ema50"]
+    ema20_recovering = last["ema20"] > prev["ema20"]
     rsi_momentum = last["rsi"] > RSI_BUY
     macd_momentum = last["hist"] > prev["hist"]
     volume_confirm = last["volume"] > last["vol_ma20"] * 1.2
 
     buy_signal = (
-        trend_up
+        ema20_recovering
         and rsi_momentum
         and macd_momentum
         and volume_confirm
@@ -241,8 +242,8 @@ def main():
             print("12% 익절 조건")
             sell_signal = True
 
-        if last["ema20"] < last["ema50"]:
-            print("EMA 추세 붕괴")
+        if last["ema20"] < prev["ema20"] and last["hist"] < prev["hist"]:
+            print("EMA20 + MACD 동시 약화")
             sell_signal = True
 
         if profit_rate > 0 and last["hist"] < prev["hist"]:
