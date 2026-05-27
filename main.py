@@ -21,6 +21,8 @@ BUY_USD = 10
 RSI_BUY = 40
 RSI_OVERHEAT = 78
 
+VOLUME_FACTOR = 0.6
+
 STOP_LOSS = -0.03
 TAKE_PROFIT = 0.12
 
@@ -192,13 +194,14 @@ def main():
     print(f"Prev Hist: {prev['hist']:.4f}")
     print(f"Volume: {last['volume']:.2f}")
     print(f"Vol MA20: {last['vol_ma20']:.2f}")
+    print(f"Volume 기준: {last['vol_ma20'] * VOLUME_FACTOR:.2f}")
     print(f"USD 잔고: {usd_balance}")
     print(f"SOL 잔고: {sol_balance}")
 
     ema20_recovering = last["ema20"] > prev["ema20"]
     rsi_momentum = last["rsi"] > RSI_BUY
     macd_momentum = last["hist"] > prev["hist"]
-    volume_confirm = last["volume"] > last["vol_ma20"] * 1.2
+    volume_confirm = last["volume"] > last["vol_ma20"] * VOLUME_FACTOR
 
     buy_signal = (
         ema20_recovering
