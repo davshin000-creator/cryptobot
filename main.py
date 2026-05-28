@@ -18,12 +18,12 @@ ASSET = "SOL"
 INTERVAL = 15
 BUY_USD = 10
 
-LOW_LOOKBACK = 4          # 15분봉 4개 = 최근 1시간
-LOW_TOLERANCE = 0.003     # 최저점에서 0.3% 이내면 매수
-VOLUME_FACTOR = 0.4
+LOW_LOOKBACK = 4          # 최근 1시간: 15분봉 4개
+LOW_TOLERANCE = 0.005     # 최근 저점에서 0.5% 이내
+VOLUME_FACTOR = 0.35
 
 STOP_LOSS = -0.03
-TAKE_PROFIT = 0.03
+TAKE_PROFIT = 0.04
 
 
 def kraken_signature(urlpath, data, secret):
@@ -156,7 +156,7 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL 1시간 최저점 반등 자동매매 시작")
+    print("Kraken SOL 하락 멈춤 반등 자동매매 시작")
 
     df = get_ohlcv()
 
@@ -182,6 +182,8 @@ def main():
     print(f"SOL 현재가: {price}")
     print(f"최근 1시간 최저가: {recent_low}")
     print(f"매수 허용 가격: {low_buy_price:.4f}")
+    print(f"Open: {last['open']}")
+    print(f"Close: {last['close']}")
     print(f"MACD Hist: {last['hist']:.4f}")
     print(f"Prev Hist: {prev['hist']:.4f}")
     print(f"Volume: {last['volume']:.2f}")
@@ -191,11 +193,13 @@ def main():
     print(f"SOL 잔고: {sol_balance}")
 
     near_recent_low = price <= low_buy_price
+    bullish_candle = last["close"] > last["open"]
     macd_recovering = last["hist"] > prev["hist"]
     volume_ok = last["volume"] > last["vol_ma20"] * VOLUME_FACTOR
 
     buy_signal = (
         near_recent_low
+        and bullish_candle
         and macd_recovering
         and volume_ok
     )
@@ -205,7 +209,7 @@ def main():
     if position_value < 5:
         if buy_signal:
             if usd_balance >= BUY_USD:
-                print("SOL 최근 1시간 저점 근처 매수 실행")
+                print("SOL 반등기점 매수 실행")
                 result = buy_market()
                 print(result)
             else:
@@ -227,16 +231,23 @@ def main():
 
         sell_signal = False
 
+        bearish_candle = last["close"] < last["open"]
+        macd_weakening = last["hist"] < prev["hist"]
+
         if profit_rate <= STOP_LOSS:
             print("손절 조건")
             sell_signal = True
 
         if profit_rate >= TAKE_PROFIT:
-            print("3% 반등 익절 조건")
+            print("4% 반등 익절 조건")
             sell_signal = True
 
-        if profit_rate > 0 and last["hist"] < prev["hist"]:
+        if profit_rate > 0 and macd_weakening:
             print("수익 중 MACD 약화")
+            sell_signal = True
+
+        if profit_rate > 0 and bearish_candle and macd_weakening:
+            print("반등 실패 약세 캔들")
             sell_signal = True
 
         if sell_signal:
