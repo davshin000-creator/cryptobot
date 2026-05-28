@@ -18,13 +18,12 @@ ASSET = "SOL"
 INTERVAL = 15
 BUY_USD = 10
 
-RSI_BUY = 40
-RSI_OVERHEAT = 78
-
-VOLUME_FACTOR = 0.6
+LOW_LOOKBACK = 4          # 15분봉 4개 = 최근 1시간
+LOW_TOLERANCE = 0.003     # 최저점에서 0.3% 이내면 매수
+VOLUME_FACTOR = 0.4
 
 STOP_LOSS = -0.03
-TAKE_PROFIT = 0.12
+TAKE_PROFIT = 0.03
 
 
 def kraken_signature(urlpath, data, secret):
@@ -77,7 +76,16 @@ def get_ohlcv():
 
     df = pd.DataFrame(
         rows,
-        columns=["time", "open", "high", "low", "close", "vwap", "volume", "count"]
+        columns=[
+            "time",
+            "open",
+            "high",
+            "low",
+            "close",
+            "vwap",
+            "volume",
+            "count"
+        ]
     )
 
     for col in ["open", "high", "low", "close", "vwap", "volume"]:
@@ -86,24 +94,7 @@ def get_ohlcv():
     return df
 
 
-def get_rsi(df, period=14):
-    delta = df["close"].diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-
-    avg_gain = gain.rolling(period).mean()
-    avg_loss = loss.rolling(period).mean()
-
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
-
-
 def add_indicators(df):
-    df["ema20"] = df["close"].ewm(span=20, adjust=False).mean()
-    df["ema50"] = df["close"].ewm(span=50, adjust=False).mean()
-
-    df["rsi"] = get_rsi(df)
-
     ema12 = df["close"].ewm(span=12, adjust=False).mean()
     ema26 = df["close"].ewm(span=26, adjust=False).mean()
 
@@ -112,6 +103,7 @@ def add_indicators(df):
     df["hist"] = df["macd"] - df["signal"]
 
     df["vol_ma20"] = df["volume"].rolling(20).mean()
+    df["recent_low"] = df["low"].rolling(LOW_LOOKBACK).min()
 
     return df
 
@@ -164,7 +156,7 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL EMA20 회복 모멘텀 자동매매 시작")
+    print("Kraken SOL 1시간 최저점 반등 자동매매 시작")
 
     df = get_ohlcv()
 
@@ -179,17 +171,17 @@ def main():
 
     price = last["close"]
 
+    recent_low = last["recent_low"]
+    low_buy_price = recent_low * (1 + LOW_TOLERANCE)
+
     balance = get_balance()
 
     usd_balance = float(balance.get("ZUSD", 0))
     sol_balance = float(balance.get(ASSET, 0))
 
     print(f"SOL 현재가: {price}")
-    print(f"RSI: {last['rsi']:.2f}")
-    print(f"Prev RSI: {prev['rsi']:.2f}")
-    print(f"EMA20: {last['ema20']:.2f}")
-    print(f"Prev EMA20: {prev['ema20']:.2f}")
-    print(f"EMA50: {last['ema50']:.2f}")
+    print(f"최근 1시간 최저가: {recent_low}")
+    print(f"매수 허용 가격: {low_buy_price:.4f}")
     print(f"MACD Hist: {last['hist']:.4f}")
     print(f"Prev Hist: {prev['hist']:.4f}")
     print(f"Volume: {last['volume']:.2f}")
@@ -198,16 +190,14 @@ def main():
     print(f"USD 잔고: {usd_balance}")
     print(f"SOL 잔고: {sol_balance}")
 
-    ema20_recovering = last["ema20"] > prev["ema20"]
-    rsi_momentum = last["rsi"] > RSI_BUY
-    macd_momentum = last["hist"] > prev["hist"]
-    volume_confirm = last["volume"] > last["vol_ma20"] * VOLUME_FACTOR
+    near_recent_low = price <= low_buy_price
+    macd_recovering = last["hist"] > prev["hist"]
+    volume_ok = last["volume"] > last["vol_ma20"] * VOLUME_FACTOR
 
     buy_signal = (
-        ema20_recovering
-        and rsi_momentum
-        and macd_momentum
-        and volume_confirm
+        near_recent_low
+        and macd_recovering
+        and volume_ok
     )
 
     position_value = sol_balance * price
@@ -215,7 +205,7 @@ def main():
     if position_value < 5:
         if buy_signal:
             if usd_balance >= BUY_USD:
-                print("SOL 매수 실행")
+                print("SOL 최근 1시간 저점 근처 매수 실행")
                 result = buy_market()
                 print(result)
             else:
@@ -242,19 +232,11 @@ def main():
             sell_signal = True
 
         if profit_rate >= TAKE_PROFIT:
-            print("12% 익절 조건")
-            sell_signal = True
-
-        if last["ema20"] < prev["ema20"] and last["hist"] < prev["hist"]:
-            print("EMA20 + MACD 동시 약화")
+            print("3% 반등 익절 조건")
             sell_signal = True
 
         if profit_rate > 0 and last["hist"] < prev["hist"]:
             print("수익 중 MACD 약화")
-            sell_signal = True
-
-        if prev["rsi"] >= RSI_OVERHEAT and last["rsi"] < prev["rsi"]:
-            print("RSI 과열 후 하락")
             sell_signal = True
 
         if sell_signal:
