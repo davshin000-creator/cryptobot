@@ -27,6 +27,7 @@ VOLUME_FACTOR = 0.35
 
 STOP_LOSS = -0.05
 TAKE_PROFIT = 0.06
+MACD_EXIT_PROFIT = 0.03
 
 
 def send_telegram(message):
@@ -88,6 +89,7 @@ def kraken_public(endpoint, params=None):
         params=params,
         timeout=20
     )
+
     result = response.json()
 
     if result.get("error"):
@@ -185,7 +187,7 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL 하락 멈춤 반등 자동매매 시작")
+    print("Kraken SOL 3시간 저점 반등 자동매매 시작")
 
     df = get_ohlcv()
 
@@ -210,7 +212,7 @@ def main():
     sol_balance = float(balance.get(ASSET, 0))
 
     print(f"SOL 현재가: {price}")
-    print(f"최근 1시간 최저가: {recent_low}")
+    print(f"최근 3시간 최저가: {recent_low}")
     print(f"매수 허용 가격: {low_buy_price:.4f}")
     print(f"Open: {last['open']}")
     print(f"Close: {last['close']}")
@@ -246,9 +248,10 @@ def main():
 
                 send_telegram(
                     f"🟢 SOL 매수 실행\n"
-                    f"전략: 하락 멈춤 반등\n"
+                    f"전략: 3시간 저점 반등\n"
                     f"현재가: ${price:.4f}\n"
-                    f"최근 1시간 최저가: ${recent_low:.4f}\n"
+                    f"최근 3시간 최저가: ${recent_low:.4f}\n"
+                    f"매수 허용가: ${low_buy_price:.4f}\n"
                     f"매수금액: ${BUY_USD}\n"
                     f"손절: {STOP_LOSS * 100:.1f}%\n"
                     f"익절: {TAKE_PROFIT * 100:.1f}%\n"
@@ -263,6 +266,7 @@ def main():
                     f"이유: USD 잔고 부족\n"
                     f"USD 잔고: ${usd_balance:.4f}"
                 )
+
         else:
             print("매수 조건 미충족")
 
@@ -291,19 +295,19 @@ def main():
             sell_reason = "손절 -5%"
 
         if profit_rate >= TAKE_PROFIT:
-            print("5% 반등 익절 조건")
+            print("6% 반등 익절 조건")
             sell_signal = True
-            sell_reason = "5% 반등 익절"
+            sell_reason = "6% 반등 익절"
 
-        if profit_rate > 0 and macd_weakening:
-            print("수익 중 MACD 약화")
+        if profit_rate >= MACD_EXIT_PROFIT and macd_weakening:
+            print("3% 이상 수익 중 MACD 약화")
             sell_signal = True
-            sell_reason = "수익 중 MACD 약화"
+            sell_reason = "3% 이상 수익 중 MACD 약화"
 
-        if profit_rate > 0 and bearish_candle and macd_weakening:
-            print("반등 실패 약세 캔들")
+        if profit_rate >= MACD_EXIT_PROFIT and bearish_candle and macd_weakening:
+            print("3% 이상 수익 중 반등 실패 약세 캔들")
             sell_signal = True
-            sell_reason = "반등 실패 약세 캔들"
+            sell_reason = "3% 이상 수익 중 반등 실패"
 
         if sell_signal:
             print("SOL 시장가 매도")
