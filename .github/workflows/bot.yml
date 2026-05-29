@@ -25,4 +25,6 @@ jobs:
         env:
           KRAKEN_API_KEY: ${{ secrets.KRAKEN_KEY }}
           KRAKEN_API_SECRET: ${{ secrets.KRAKEN_SECRET }}
+          TOKEN: ${{ secrets.TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
