@@ -40,10 +40,7 @@ def send_telegram(message):
     try:
         response = requests.post(
             url,
-            data={
-                "chat_id": CHAT_ID,
-                "text": message
-            },
+            data={"chat_id": CHAT_ID, "text": message},
             timeout=10
         )
 
@@ -106,14 +103,8 @@ def get_ohlcv():
     df = pd.DataFrame(
         rows,
         columns=[
-            "time",
-            "open",
-            "high",
-            "low",
-            "close",
-            "vwap",
-            "volume",
-            "count"
+            "time", "open", "high", "low", "close",
+            "vwap", "volume", "count"
         ]
     )
 
@@ -231,9 +222,11 @@ def main():
 
     buy_signal = (
         near_recent_low
-        and bullish_candle
-        and macd_recovering
         and volume_ok
+        and (
+            bullish_candle
+            or macd_recovering
+        )
     )
 
     position_value = sol_balance * price
@@ -255,7 +248,8 @@ def main():
                     f"매수금액: ${BUY_USD}\n"
                     f"손절: {STOP_LOSS * 100:.1f}%\n"
                     f"익절: {TAKE_PROFIT * 100:.1f}%\n"
-                    f"MACD Hist: {last['hist']:.4f}\n"
+                    f"양봉 여부: {bullish_candle}\n"
+                    f"MACD 회복: {macd_recovering}\n"
                     f"거래량: {last['volume']:.2f}"
                 )
 
