@@ -10,6 +10,9 @@ import pandas as pd
 API_KEY = os.getenv("KRAKEN_API_KEY")
 API_SECRET = os.getenv("KRAKEN_API_SECRET")
 
+TELEGRAM_TOKEN = os.getenv("TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+
 BASE_URL = "https://api.kraken.com"
 
 PAIR = "SOLUSD"
@@ -18,12 +21,36 @@ ASSET = "SOL"
 INTERVAL = 15
 BUY_USD = 10
 
-LOW_LOOKBACK = 4          # 최근 1시간: 15분봉 4개
-LOW_TOLERANCE = 0.005     # 최근 저점에서 0.5% 이내
+LOW_LOOKBACK = 4
+LOW_TOLERANCE = 0.005
 VOLUME_FACTOR = 0.35
 
 STOP_LOSS = -0.03
 TAKE_PROFIT = 0.04
+
+
+def send_telegram(message):
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        print("텔레그램 설정 없음")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+
+    try:
+        response = requests.post(
+            url,
+            data={
+                "chat_id": CHAT_ID,
+                "text": message
+            },
+            timeout=10
+        )
+
+        if response.status_code != 200:
+            print("텔레그램 전송 실패:", response.text)
+
+    except Exception as e:
+        print("텔레그램 전송 오류:", e)
 
 
 def kraken_signature(urlpath, data, secret):
@@ -120,6 +147,7 @@ def buy_market():
         "volume": str(BUY_USD),
         "oflags": "viqc"
     }
+
     return kraken_private("AddOrder", data)
 
 
@@ -130,6 +158,7 @@ def sell_market(sol_amount):
         "ordertype": "market",
         "volume": str(sol_amount)
     }
+
     return kraken_private("AddOrder", data)
 
 
@@ -162,6 +191,7 @@ def main():
 
     if df is None or len(df) < 100:
         print("캔들 부족")
+        send_telegram("⚠️ SOL 봇 오류\n캔들 데이터 부족")
         return
 
     df = add_indicators(df)
@@ -210,10 +240,27 @@ def main():
         if buy_signal:
             if usd_balance >= BUY_USD:
                 print("SOL 반등기점 매수 실행")
+
                 result = buy_market()
                 print(result)
+
+                send_telegram(
+                    f"🟢 SOL 매수 실행\n"
+                    f"전략: 하락 멈춤 반등\n"
+                    f"현재가: ${price:.4f}\n"
+                    f"최근 1시간 최저가: ${recent_low:.4f}\n"
+                    f"매수금액: ${BUY_USD}\n"
+                    f"MACD Hist: {last['hist']:.4f}\n"
+                    f"거래량: {last['volume']:.2f}"
+                )
+
             else:
                 print("USD 잔고 부족")
+                send_telegram(
+                    f"⚠️ SOL 매수 실패\n"
+                    f"이유: USD 잔고 부족\n"
+                    f"USD 잔고: ${usd_balance:.4f}"
+                )
         else:
             print("매수 조건 미충족")
 
@@ -222,6 +269,7 @@ def main():
 
         if avg_buy_price == 0:
             print("매수가 조회 실패")
+            send_telegram("⚠️ SOL 봇 오류\n매수가 조회 실패")
             return
 
         profit_rate = (price - avg_buy_price) / avg_buy_price
@@ -230,6 +278,7 @@ def main():
         print(f"수익률: {profit_rate * 100:.2f}%")
 
         sell_signal = False
+        sell_reason = ""
 
         bearish_candle = last["close"] < last["open"]
         macd_weakening = last["hist"] < prev["hist"]
@@ -237,26 +286,45 @@ def main():
         if profit_rate <= STOP_LOSS:
             print("손절 조건")
             sell_signal = True
+            sell_reason = "손절 -3%"
 
         if profit_rate >= TAKE_PROFIT:
             print("4% 반등 익절 조건")
             sell_signal = True
+            sell_reason = "4% 반등 익절"
 
         if profit_rate > 0 and macd_weakening:
             print("수익 중 MACD 약화")
             sell_signal = True
+            sell_reason = "수익 중 MACD 약화"
 
         if profit_rate > 0 and bearish_candle and macd_weakening:
             print("반등 실패 약세 캔들")
             sell_signal = True
+            sell_reason = "반등 실패 약세 캔들"
 
         if sell_signal:
             print("SOL 시장가 매도")
+
             result = sell_market(sol_balance)
             print(result)
+
+            send_telegram(
+                f"🔴 SOL 매도 실행\n"
+                f"이유: {sell_reason}\n"
+                f"현재가: ${price:.4f}\n"
+                f"매수가: ${avg_buy_price:.4f}\n"
+                f"수익률: {profit_rate * 100:.2f}%\n"
+                f"SOL 수량: {sol_balance}"
+            )
+
         else:
             print("보유 유지")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print("에러 발생:", e)
+        send_telegram(f"⚠️ SOL 봇 에러 발생\n{e}")
