@@ -19,14 +19,14 @@ PAIR = "SOLUSD"
 ASSET = "SOL"
 
 INTERVAL = 15
-BUY_USD = 10
+BUY_USD = 15
 
 LOW_LOOKBACK = 4
 LOW_TOLERANCE = 0.005
 VOLUME_FACTOR = 0.35
 
-STOP_LOSS = -0.03
-TAKE_PROFIT = 0.04
+STOP_LOSS = -0.05
+TAKE_PROFIT = 0.05
 
 
 def send_telegram(message):
@@ -250,6 +250,8 @@ def main():
                     f"현재가: ${price:.4f}\n"
                     f"최근 1시간 최저가: ${recent_low:.4f}\n"
                     f"매수금액: ${BUY_USD}\n"
+                    f"손절: {STOP_LOSS * 100:.1f}%\n"
+                    f"익절: {TAKE_PROFIT * 100:.1f}%\n"
                     f"MACD Hist: {last['hist']:.4f}\n"
                     f"거래량: {last['volume']:.2f}"
                 )
@@ -286,12 +288,12 @@ def main():
         if profit_rate <= STOP_LOSS:
             print("손절 조건")
             sell_signal = True
-            sell_reason = "손절 -3%"
+            sell_reason = "손절 -5%"
 
         if profit_rate >= TAKE_PROFIT:
-            print("4% 반등 익절 조건")
+            print("5% 반등 익절 조건")
             sell_signal = True
-            sell_reason = "4% 반등 익절"
+            sell_reason = "5% 반등 익절"
 
         if profit_rate > 0 and macd_weakening:
             print("수익 중 MACD 약화")
