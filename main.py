@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import base64
 import hashlib
 import hmac
@@ -26,8 +27,36 @@ LOW_TOLERANCE = 0.005
 VOLUME_FACTOR = 0.35
 
 STOP_LOSS = -0.05
-TAKE_PROFIT = 0.06
+
+TRAILING_START_PROFIT = 0.06
+TRAILING_DROP = -0.02
+
 MACD_EXIT_PROFIT = 0.03
+
+STATE_FILE = "state.json"
+
+
+def load_state():
+    try:
+        with open(STATE_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {
+            "highest_price": 0,
+            "in_trailing_mode": False
+        }
+
+
+def save_state(state):
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+def reset_state():
+    save_state({
+        "highest_price": 0,
+        "in_trailing_mode": False
+    })
 
 
 def send_telegram(message):
@@ -40,7 +69,10 @@ def send_telegram(message):
     try:
         response = requests.post(
             url,
-            data={"chat_id": CHAT_ID, "text": message},
+            data={
+                "chat_id": CHAT_ID,
+                "text": message
+            },
             timeout=10
         )
 
@@ -103,8 +135,14 @@ def get_ohlcv():
     df = pd.DataFrame(
         rows,
         columns=[
-            "time", "open", "high", "low", "close",
-            "vwap", "volume", "count"
+            "time",
+            "open",
+            "high",
+            "low",
+            "close",
+            "vwap",
+            "volume",
+            "count"
         ]
     )
 
@@ -178,7 +216,9 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL 3시간 저점 반등 자동매매 시작")
+    print("Kraken SOL 3시간 저점 반등 + 트레일링 익절 봇 시작")
+
+    state = load_state()
 
     df = get_ohlcv()
 
@@ -214,6 +254,7 @@ def main():
     print(f"Volume 기준: {last['vol_ma20'] * VOLUME_FACTOR:.2f}")
     print(f"USD 잔고: {usd_balance}")
     print(f"SOL 잔고: {sol_balance}")
+    print(f"트레일링 상태: {state}")
 
     near_recent_low = price <= low_buy_price
     bullish_candle = last["close"] > last["open"]
@@ -232,12 +273,16 @@ def main():
     position_value = sol_balance * price
 
     if position_value < 5:
+        reset_state()
+
         if buy_signal:
             if usd_balance >= BUY_USD:
                 print("SOL 반등기점 매수 실행")
 
                 result = buy_market()
                 print(result)
+
+                reset_state()
 
                 send_telegram(
                     f"🟢 SOL 매수 실행\n"
@@ -247,7 +292,8 @@ def main():
                     f"매수 허용가: ${low_buy_price:.4f}\n"
                     f"매수금액: ${BUY_USD}\n"
                     f"손절: {STOP_LOSS * 100:.1f}%\n"
-                    f"익절: {TAKE_PROFIT * 100:.1f}%\n"
+                    f"트레일링 시작: +{TRAILING_START_PROFIT * 100:.1f}%\n"
+                    f"트레일링 하락폭: {TRAILING_DROP * 100:.1f}%\n"
                     f"양봉 여부: {bullish_candle}\n"
                     f"MACD 회복: {macd_recovering}\n"
                     f"거래량: {last['volume']:.2f}"
@@ -277,6 +323,24 @@ def main():
         print(f"매수가: {avg_buy_price}")
         print(f"수익률: {profit_rate * 100:.2f}%")
 
+        if state.get("highest_price", 0) == 0:
+            state["highest_price"] = price
+
+        if price > state.get("highest_price", 0):
+            state["highest_price"] = price
+
+        if profit_rate >= TRAILING_START_PROFIT:
+            state["in_trailing_mode"] = True
+
+        highest_price = state.get("highest_price", price)
+        trailing_drop_rate = (price - highest_price) / highest_price
+
+        save_state(state)
+
+        print(f"최고가: {highest_price}")
+        print(f"고점 대비 하락률: {trailing_drop_rate * 100:.2f}%")
+        print(f"트레일링 모드: {state.get('in_trailing_mode')}")
+
         sell_signal = False
         sell_reason = ""
 
@@ -288,10 +352,10 @@ def main():
             sell_signal = True
             sell_reason = "손절 -5%"
 
-        if profit_rate >= TAKE_PROFIT:
-            print("6% 반등 익절 조건")
+        if state.get("in_trailing_mode") and trailing_drop_rate <= TRAILING_DROP:
+            print("트레일링 익절 조건")
             sell_signal = True
-            sell_reason = "6% 반등 익절"
+            sell_reason = "트레일링 익절"
 
         if profit_rate >= MACD_EXIT_PROFIT and macd_weakening:
             print("3% 이상 수익 중 MACD 약화")
@@ -314,12 +378,17 @@ def main():
                 f"이유: {sell_reason}\n"
                 f"현재가: ${price:.4f}\n"
                 f"매수가: ${avg_buy_price:.4f}\n"
+                f"최고가: ${highest_price:.4f}\n"
                 f"수익률: {profit_rate * 100:.2f}%\n"
+                f"고점 대비 하락률: {trailing_drop_rate * 100:.2f}%\n"
                 f"SOL 수량: {sol_balance}"
             )
 
+            reset_state()
+
         else:
             print("보유 유지")
+            save_state(state)
 
 
 if __name__ == "__main__":
