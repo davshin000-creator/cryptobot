@@ -30,7 +30,7 @@ jobs:
           KRAKEN_API_SECRET: ${{ secrets.KRAKEN_SECRET }}
           TOKEN: ${{ secrets.TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python main.py
+        run: python main_scalp.py
 
       - name: Commit state file
         run: |
