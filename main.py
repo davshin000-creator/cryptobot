@@ -28,8 +28,8 @@ LOW_TOLERANCE = 0.005
 STOP_LOSS = -0.05
 BREAK_LOW_STOP = 0.005
 
-TRAILING_START_PROFIT = 0.06
-TRAILING_DROP = -0.02
+TRAILING_START_PROFIT = 0.02
+TRAILING_DROP = -0.015
 
 STATE_FILE = "state.json"
 
@@ -213,7 +213,7 @@ def get_latest_buy_price():
 
 
 def main():
-    print("Kraken SOL 3시간 저점 반등 + 트레일링 익절 봇 시작")
+    print("Kraken SOL 3시간 저점 반등 + 조기 트레일링 봇 시작")
 
     state = load_state()
 
@@ -351,9 +351,9 @@ def main():
             sell_reason = "최종 손절 -5%"
 
         if state.get("in_trailing_mode") and trailing_drop_rate <= TRAILING_DROP:
-            print("트레일링 익절 조건")
+            print("조기 트레일링 매도 조건")
             sell_signal = True
-            sell_reason = "트레일링 익절"
+            sell_reason = "조기 트레일링 매도"
 
         if sell_signal:
             print("SOL 시장가 매도")
