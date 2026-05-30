@@ -24,14 +24,12 @@ BUY_USD = 15
 
 LOW_LOOKBACK = 12
 LOW_TOLERANCE = 0.005
-VOLUME_FACTOR = 0.35
 
 STOP_LOSS = -0.05
+BREAK_LOW_STOP = 0.005
 
 TRAILING_START_PROFIT = 0.06
 TRAILING_DROP = -0.02
-
-MACD_EXIT_PROFIT = 0.03
 
 STATE_FILE = "state.json"
 
@@ -160,7 +158,6 @@ def add_indicators(df):
     df["signal"] = df["macd"].ewm(span=9, adjust=False).mean()
     df["hist"] = df["macd"] - df["signal"]
 
-    df["vol_ma20"] = df["volume"].rolling(20).mean()
     df["recent_low"] = df["low"].rolling(LOW_LOOKBACK).min()
 
     return df
@@ -236,6 +233,7 @@ def main():
 
     recent_low = last["recent_low"]
     low_buy_price = recent_low * (1 + LOW_TOLERANCE)
+    break_low_price = recent_low * (1 - BREAK_LOW_STOP)
 
     balance = get_balance()
 
@@ -245,13 +243,11 @@ def main():
     print(f"SOL 현재가: {price}")
     print(f"최근 3시간 최저가: {recent_low}")
     print(f"매수 허용 가격: {low_buy_price:.4f}")
+    print(f"조기손절 기준가: {break_low_price:.4f}")
     print(f"Open: {last['open']}")
     print(f"Close: {last['close']}")
     print(f"MACD Hist: {last['hist']:.4f}")
     print(f"Prev Hist: {prev['hist']:.4f}")
-    print(f"Volume: {last['volume']:.2f}")
-    print(f"Vol MA20: {last['vol_ma20']:.2f}")
-    print(f"Volume 기준: {last['vol_ma20'] * VOLUME_FACTOR:.2f}")
     print(f"USD 잔고: {usd_balance}")
     print(f"SOL 잔고: {sol_balance}")
     print(f"트레일링 상태: {state}")
@@ -259,11 +255,9 @@ def main():
     near_recent_low = price <= low_buy_price
     bullish_candle = last["close"] > last["open"]
     macd_recovering = last["hist"] > prev["hist"]
-    volume_ok = last["volume"] > last["vol_ma20"] * VOLUME_FACTOR
 
     buy_signal = (
         near_recent_low
-        and volume_ok
         and (
             bullish_candle
             or macd_recovering
@@ -290,13 +284,13 @@ def main():
                     f"현재가: ${price:.4f}\n"
                     f"최근 3시간 최저가: ${recent_low:.4f}\n"
                     f"매수 허용가: ${low_buy_price:.4f}\n"
+                    f"조기손절 기준가: ${break_low_price:.4f}\n"
                     f"매수금액: ${BUY_USD}\n"
-                    f"손절: {STOP_LOSS * 100:.1f}%\n"
+                    f"최종 손절: {STOP_LOSS * 100:.1f}%\n"
                     f"트레일링 시작: +{TRAILING_START_PROFIT * 100:.1f}%\n"
                     f"트레일링 하락폭: {TRAILING_DROP * 100:.1f}%\n"
                     f"양봉 여부: {bullish_candle}\n"
-                    f"MACD 회복: {macd_recovering}\n"
-                    f"거래량: {last['volume']:.2f}"
+                    f"MACD 회복: {macd_recovering}"
                 )
 
             else:
@@ -344,28 +338,22 @@ def main():
         sell_signal = False
         sell_reason = ""
 
-        bearish_candle = last["close"] < last["open"]
-        macd_weakening = last["hist"] < prev["hist"]
+        break_low_stop = profit_rate < 0 and price < break_low_price
+
+        if break_low_stop:
+            print("저점 이탈 조기 손절")
+            sell_signal = True
+            sell_reason = "저점 이탈 조기 손절"
 
         if profit_rate <= STOP_LOSS:
-            print("손절 조건")
+            print("최종 손절 조건")
             sell_signal = True
-            sell_reason = "손절 -5%"
+            sell_reason = "최종 손절 -5%"
 
         if state.get("in_trailing_mode") and trailing_drop_rate <= TRAILING_DROP:
             print("트레일링 익절 조건")
             sell_signal = True
             sell_reason = "트레일링 익절"
-
-        if profit_rate >= MACD_EXIT_PROFIT and macd_weakening:
-            print("3% 이상 수익 중 MACD 약화")
-            sell_signal = True
-            sell_reason = "3% 이상 수익 중 MACD 약화"
-
-        if profit_rate >= MACD_EXIT_PROFIT and bearish_candle and macd_weakening:
-            print("3% 이상 수익 중 반등 실패 약세 캔들")
-            sell_signal = True
-            sell_reason = "3% 이상 수익 중 반등 실패"
 
         if sell_signal:
             print("SOL 시장가 매도")
@@ -378,6 +366,8 @@ def main():
                 f"이유: {sell_reason}\n"
                 f"현재가: ${price:.4f}\n"
                 f"매수가: ${avg_buy_price:.4f}\n"
+                f"최근 3시간 최저가: ${recent_low:.4f}\n"
+                f"조기손절 기준가: ${break_low_price:.4f}\n"
                 f"최고가: ${highest_price:.4f}\n"
                 f"수익률: {profit_rate * 100:.2f}%\n"
                 f"고점 대비 하락률: {trailing_drop_rate * 100:.2f}%\n"
