@@ -1,26 +1,20 @@
 import os
-import time
 import json
-import base64
-import hashlib
-import hmac
-import urllib.parse
-import requests
+import pyupbit
 import pandas as pd
+import requests
 
-API_KEY = os.getenv("KRAKEN_API_KEY")
-API_SECRET = os.getenv("KRAKEN_API_SECRET")
+ACCESS_KEY = os.getenv("UPBIT_ACCESS_KEY")
+SECRET_KEY = os.getenv("UPBIT_SECRET_KEY")
 
 TELEGRAM_TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-BASE_URL = "https://api.kraken.com"
+TICKER = "KRW-SOL"
+COIN = "SOL"
 
-PAIR = "SOLUSD"
-ASSET = "SOL"
-
-INTERVAL = 15
-BUY_USD = 15
+INTERVAL = "minute15"
+BUY_KRW = 5000
 
 LOW_LOOKBACK = 12
 LOW_TOLERANCE = 0.005
@@ -32,6 +26,8 @@ TRAILING_START_PROFIT = 0.02
 TRAILING_DROP = -0.015
 
 STATE_FILE = "state.json"
+
+upbit = pyupbit.Upbit(ACCESS_KEY, SECRET_KEY)
 
 
 def load_state():
@@ -65,7 +61,7 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
 
     try:
-        response = requests.post(
+        requests.post(
             url,
             data={
                 "chat_id": CHAT_ID,
@@ -73,81 +69,28 @@ def send_telegram(message):
             },
             timeout=10
         )
-
-        if response.status_code != 200:
-            print("텔레그램 전송 실패:", response.text)
-
     except Exception as e:
         print("텔레그램 전송 오류:", e)
 
 
-def kraken_signature(urlpath, data, secret):
-    postdata = urllib.parse.urlencode(data)
-    encoded = (str(data["nonce"]) + postdata).encode()
-    message = urlpath.encode() + hashlib.sha256(encoded).digest()
-    mac = hmac.new(base64.b64decode(secret), message, hashlib.sha512)
-    return base64.b64encode(mac.digest()).decode()
+def get_balance(currency):
+    balances = upbit.get_balances()
+
+    for b in balances:
+        if b["currency"] == currency:
+            return float(b["balance"])
+
+    return 0
 
 
-def kraken_private(endpoint, data=None):
-    if data is None:
-        data = {}
+def get_avg_buy_price(currency):
+    balances = upbit.get_balances()
 
-    urlpath = f"/0/private/{endpoint}"
-    data["nonce"] = str(int(time.time() * 1000))
+    for b in balances:
+        if b["currency"] == currency:
+            return float(b["avg_buy_price"])
 
-    headers = {
-        "API-Key": API_KEY,
-        "API-Sign": kraken_signature(urlpath, data, API_SECRET),
-    }
-
-    response = requests.post(BASE_URL + urlpath, headers=headers, data=data, timeout=20)
-    result = response.json()
-
-    if result.get("error"):
-        raise Exception(result["error"])
-
-    return result["result"]
-
-
-def kraken_public(endpoint, params=None):
-    response = requests.get(
-        BASE_URL + f"/0/public/{endpoint}",
-        params=params,
-        timeout=20
-    )
-
-    result = response.json()
-
-    if result.get("error"):
-        raise Exception(result["error"])
-
-    return result["result"]
-
-
-def get_ohlcv():
-    data = kraken_public("OHLC", {"pair": PAIR, "interval": INTERVAL})
-    key = [k for k in data.keys() if k != "last"][0]
-    rows = data[key]
-
-    df = pd.DataFrame(
-        rows,
-        columns=[
-            "time",
-            "open",
-            "high",
-            "low",
-            "close",
-            "vwap",
-            "volume",
-            "count"
-        ]
-    )
-
-    for col in ["open", "high", "low", "close", "vwap", "volume"]:
-        df[col] = df[col].astype(float)
-
-    return df
+    return 0
 
 
 def add_indicators(df):
@@ -163,65 +106,16 @@ def add_indicators(df):
     return df
 
 
-def get_balance():
-    return kraken_private("Balance")
-
-
-def buy_market():
-    data = {
-        "pair": PAIR,
-        "type": "buy",
-        "ordertype": "market",
-        "volume": str(BUY_USD),
-        "oflags": "viqc"
-    }
-
-    return kraken_private("AddOrder", data)
-
-
-def sell_market(sol_amount):
-    data = {
-        "pair": PAIR,
-        "type": "sell",
-        "ordertype": "market",
-        "volume": str(sol_amount)
-    }
-
-    return kraken_private("AddOrder", data)
-
-
-def get_latest_buy_price():
-    trades = kraken_private("TradesHistory", {"type": "all"})
-    trade_list = trades.get("trades", {})
-
-    buys = []
-
-    for trade_id, trade in trade_list.items():
-        if trade.get("type") == "buy" and "SOL" in trade.get("pair", ""):
-            buys.append(trade)
-
-    if not buys:
-        return 0
-
-    latest_buy = sorted(
-        buys,
-        key=lambda x: x["time"],
-        reverse=True
-    )[0]
-
-    return float(latest_buy["price"])
-
-
 def main():
-    print("Kraken SOL 3시간 저점 반등 + 조기 트레일링 봇 시작")
+    print("Upbit SOL 3시간 저점 반등 + 조기 트레일링 봇 시작")
 
     state = load_state()
 
-    df = get_ohlcv()
+    df = pyupbit.get_ohlcv(TICKER, interval=INTERVAL, count=100)
 
-    if df is None or len(df) < 100:
-        print("캔들 부족")
-        send_telegram("⚠️ SOL 봇 오류\n캔들 데이터 부족")
+    if df is None or len(df) < 50:
+        print("캔들 데이터 부족")
+        send_telegram("⚠️ Upbit SOL 봇 오류\n캔들 데이터 부족")
         return
 
     df = add_indicators(df)
@@ -235,21 +129,22 @@ def main():
     low_buy_price = recent_low * (1 + LOW_TOLERANCE)
     break_low_price = recent_low * (1 - BREAK_LOW_STOP)
 
-    balance = get_balance()
+    krw_balance = get_balance("KRW")
+    sol_balance = get_balance(COIN)
 
-    usd_balance = float(balance.get("ZUSD", 0))
-    sol_balance = float(balance.get(ASSET, 0))
+    position_value = sol_balance * price
 
     print(f"SOL 현재가: {price}")
     print(f"최근 3시간 최저가: {recent_low}")
-    print(f"매수 허용 가격: {low_buy_price:.4f}")
-    print(f"조기손절 기준가: {break_low_price:.4f}")
+    print(f"매수 허용가: {low_buy_price:.2f}")
+    print(f"조기손절 기준가: {break_low_price:.2f}")
     print(f"Open: {last['open']}")
     print(f"Close: {last['close']}")
     print(f"MACD Hist: {last['hist']:.4f}")
     print(f"Prev Hist: {prev['hist']:.4f}")
-    print(f"USD 잔고: {usd_balance}")
+    print(f"KRW 잔고: {krw_balance}")
     print(f"SOL 잔고: {sol_balance}")
+    print(f"보유 평가금액: {position_value:.2f}")
     print(f"트레일링 상태: {state}")
 
     near_recent_low = price <= low_buy_price
@@ -264,28 +159,24 @@ def main():
         )
     )
 
-    position_value = sol_balance * price
-
-    if position_value < 5:
+    if position_value < 5000:
         reset_state()
 
         if buy_signal:
-            if usd_balance >= BUY_USD:
-                print("SOL 반등기점 매수 실행")
+            if krw_balance >= BUY_KRW:
+                print("SOL 매수 실행")
 
-                result = buy_market()
+                result = upbit.buy_market_order(TICKER, BUY_KRW)
                 print(result)
 
                 reset_state()
 
                 send_telegram(
-                    f"🟢 SOL 매수 실행\n"
-                    f"전략: 3시간 저점 반등\n"
-                    f"현재가: ${price:.4f}\n"
-                    f"최근 3시간 최저가: ${recent_low:.4f}\n"
-                    f"매수 허용가: ${low_buy_price:.4f}\n"
-                    f"조기손절 기준가: ${break_low_price:.4f}\n"
-                    f"매수금액: ${BUY_USD}\n"
+                    f"🟢 Upbit SOL 매수 실행\n"
+                    f"현재가: {price:,.0f}원\n"
+                    f"최근 3시간 최저가: {recent_low:,.0f}원\n"
+                    f"매수 허용가: {low_buy_price:,.0f}원\n"
+                    f"매수금액: {BUY_KRW:,.0f}원\n"
                     f"최종 손절: {STOP_LOSS * 100:.1f}%\n"
                     f"트레일링 시작: +{TRAILING_START_PROFIT * 100:.1f}%\n"
                     f"트레일링 하락폭: {TRAILING_DROP * 100:.1f}%\n"
@@ -294,27 +185,27 @@ def main():
                 )
 
             else:
-                print("USD 잔고 부족")
+                print("KRW 잔고 부족")
                 send_telegram(
-                    f"⚠️ SOL 매수 실패\n"
-                    f"이유: USD 잔고 부족\n"
-                    f"USD 잔고: ${usd_balance:.4f}"
+                    f"⚠️ Upbit SOL 매수 실패\n"
+                    f"이유: KRW 잔고 부족\n"
+                    f"KRW 잔고: {krw_balance:,.0f}원"
                 )
 
         else:
             print("매수 조건 미충족")
 
     else:
-        avg_buy_price = get_latest_buy_price()
+        avg_buy_price = get_avg_buy_price(COIN)
 
         if avg_buy_price == 0:
-            print("매수가 조회 실패")
-            send_telegram("⚠️ SOL 봇 오류\n매수가 조회 실패")
+            print("평균 매수가 조회 실패")
+            send_telegram("⚠️ Upbit SOL 봇 오류\n평균 매수가 조회 실패")
             return
 
         profit_rate = (price - avg_buy_price) / avg_buy_price
 
-        print(f"매수가: {avg_buy_price}")
+        print(f"평균 매수가: {avg_buy_price}")
         print(f"수익률: {profit_rate * 100:.2f}%")
 
         if state.get("highest_price", 0) == 0:
@@ -341,34 +232,30 @@ def main():
         break_low_stop = profit_rate < 0 and price < break_low_price
 
         if break_low_stop:
-            print("저점 이탈 조기 손절")
             sell_signal = True
             sell_reason = "저점 이탈 조기 손절"
 
         if profit_rate <= STOP_LOSS:
-            print("최종 손절 조건")
             sell_signal = True
             sell_reason = "최종 손절 -5%"
 
         if state.get("in_trailing_mode") and trailing_drop_rate <= TRAILING_DROP:
-            print("조기 트레일링 매도 조건")
             sell_signal = True
             sell_reason = "조기 트레일링 매도"
 
         if sell_signal:
-            print("SOL 시장가 매도")
+            print("SOL 매도 실행")
 
-            result = sell_market(sol_balance)
+            result = upbit.sell_market_order(TICKER, sol_balance)
             print(result)
 
             send_telegram(
-                f"🔴 SOL 매도 실행\n"
+                f"🔴 Upbit SOL 매도 실행\n"
                 f"이유: {sell_reason}\n"
-                f"현재가: ${price:.4f}\n"
-                f"매수가: ${avg_buy_price:.4f}\n"
-                f"최근 3시간 최저가: ${recent_low:.4f}\n"
-                f"조기손절 기준가: ${break_low_price:.4f}\n"
-                f"최고가: ${highest_price:.4f}\n"
+                f"현재가: {price:,.0f}원\n"
+                f"평균 매수가: {avg_buy_price:,.0f}원\n"
+                f"최근 3시간 최저가: {recent_low:,.0f}원\n"
+                f"최고가: {highest_price:,.0f}원\n"
                 f"수익률: {profit_rate * 100:.2f}%\n"
                 f"고점 대비 하락률: {trailing_drop_rate * 100:.2f}%\n"
                 f"SOL 수량: {sol_balance}"
@@ -386,4 +273,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         print("에러 발생:", e)
-        send_telegram(f"⚠️ SOL 봇 에러 발생\n{e}")
+        send_telegram(f"⚠️ Upbit SOL 봇 에러 발생\n{e}")
